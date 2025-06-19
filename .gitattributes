@@ -1,0 +1,84 @@
+# Git attributes for NextFlow Docker project
+# Ensures consistent line endings across different operating systems
+
+# Default behavior: normalize line endings to LF on checkin, 
+# convert to native line endings on checkout
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout
+*.md text
+*.txt text
+*.yml text
+*.yaml text
+*.json text
+*.sh text eol=lf
+*.bash text eol=lf
+*.env text
+*.example text
+*.rb text
+*.toml text
+*.conf text
+*.config text
+
+# Declare files that will always have CRLF line endings on checkout
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Declare files that will always have LF line endings on checkout
+*.sh text eol=lf
+*.bash text eol=lf
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.rar binary
+
+# Docker related files
+Dockerfile* text eol=lf
+*.dockerignore text eol=lf
+
+# Scripts should always use LF
+scripts/** text eol=lf
+
+# Configuration files
+config/** text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# GitLab data should be ignored (runtime data)
+gitlab/data/** export-ignore
+gitlab/logs/** export-ignore
+
+# Exclude GitLab runtime files from Git
+gitlab/data/gitaly/gitaly.socket binary export-ignore
+gitlab/data/gitaly/*.socket binary export-ignore
+gitlab/data/**/*.socket binary export-ignore
+gitlab/data/**/*.pid binary export-ignore
+gitlab/data/**/*.lock binary export-ignore
+
+# SSH keys should maintain their format
+*.pub text eol=lf
+*_key text eol=lf
+*_key.* text eol=lf
+
+# Environment files
+.env* text eol=lf
+
+# Documentation
+*.md text eol=lf
+docs/** text eol=lf
+
+# Logs should be ignored
+logs/** export-ignore
+*.log export-ignore

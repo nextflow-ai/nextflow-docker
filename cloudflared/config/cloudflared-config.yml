@@ -1,0 +1,128 @@
+# ============================================================================
+# CLOUDFLARE TUNNEL CHÍNH - TỐI ƯU HÓA VÀ CHUẨN HÓA
+# ============================================================================
+# Tunnel ID: a64d6b64-22f0-4e13-b832-13026853c657
+# Cập nhật: 2025-06-16 - Tối ưu hóa và sửa lỗi port mapping
+# Mục đích: Xử lý WordPress, GitLab, Stalwart Mail và các dịch vụ cốt lõi
+
+tunnel: a64d6b64-22f0-4e13-b832-13026853c657
+credentials-file: /etc/cloudflared/credentials.json
+
+# Tắt tự động cập nhật để đảm bảo ổn định
+no-autoupdate: true
+
+# Cấu hình ingress rules - ĐÃ CHUẨN HÓA PORT MAPPING
+ingress:
+  # WordPress - Landing Page chính (Main Domain)
+  - hostname: nextflow.vn
+    service: http://wordpress:80
+    originRequest:
+      httpHostHeader: nextflow.vn
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 100
+      keepAliveTimeout: 90s
+
+  # WordPress - WWW subdomain
+  - hostname: www.nextflow.vn
+    service: http://wordpress:80
+    originRequest:
+      httpHostHeader: www.nextflow.vn
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 100
+      keepAliveTimeout: 90s
+
+  # GitLab - Source Code Management
+  - hostname: gitlab.nextflow.vn
+    service: http://gitlab:80
+    originRequest:
+      httpHostHeader: gitlab.nextflow.vn
+      connectTimeout: 60s # Tăng timeout cho GitLab
+      tlsTimeout: 60s
+      tcpKeepAlive: 60s
+      keepAliveConnections: 50
+      keepAliveTimeout: 120s
+
+  # Stalwart Mail Server - SỬA LỖI PORT
+  - hostname: mail.nextflow.vn
+    service: http://stalwart-mail:80
+    originRequest:
+      httpHostHeader: mail.nextflow.vn
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 100
+      keepAliveTimeout: 90s
+
+  # n8n - Workflow Automation Platform 
+  - hostname: n8n.nextflow.vn
+    service: http://n8n:5678
+    originRequest:
+      httpHostHeader: n8n.nextflow.vn
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 100
+      keepAliveTimeout: 90s
+
+  # Flowise - AI Orchestration Platform 
+  - hostname: flowise.nextflow.vn
+    service: http://flowise:3000
+    originRequest:
+      httpHostHeader: flowise.nextflow.vn
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 100
+      keepAliveTimeout: 90s
+
+  # Langflow - AI Flow Builder - ĐÚNG PORT
+  - hostname: langflow.nextflow.vn
+    service: http://langflow:7860
+    originRequest:
+      httpHostHeader: langflow.nextflow.vn
+      connectTimeout: 60s
+      tlsTimeout: 60s
+      tcpKeepAlive: 60s
+      keepAliveConnections: 50
+      keepAliveTimeout: 120s
+
+    # Open WebUI - AI Chat Interface - SỬA LỖI PORT
+  - hostname: openai.nextflow.vn
+    service: http://open-webui:8080
+    originRequest:
+      httpHostHeader: openai.nextflow.vn
+      connectTimeout: 30s
+      tlsTimeout: 30s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 100
+      keepAliveTimeout: 90s
+
+  # Ollama - Local AI Models - ĐÚNG PORT
+  - hostname: ollama.nextflow.vn
+    service: http://ollama:11434
+    originRequest:
+      httpHostHeader: ollama.nextflow.vn
+      connectTimeout: 60s
+      tlsTimeout: 60s
+      tcpKeepAlive: 60s
+      keepAliveConnections: 50
+      keepAliveTimeout: 120s
+      noHappyEyeballs: true
+
+  - hostname: monitoring.nextflow.vn
+    service: http://grafana:3000
+    originRequest:
+      httpHostHeader: monitoring.nextflow.vn
+      connectTimeout: 60s
+      tlsTimeout: 60s
+      tcpKeepAlive: 60s
+      keepAliveConnections: 50
+      keepAliveTimeout: 120s
+      noHappyEyeballs: true
+
+  # Catch-all rule (must be last)
+  - service: http_status:404

@@ -1,0 +1,1398 @@
+# Cấu hình Docker Compose cho NextFlow
+
+# ============================================================================
+# NEXTFLOW DOCKER COMPOSE - HỆ THỐNG MICROSERVICES TOÀN DIỆN
+# ============================================================================
+# Mô tả: Hệ thống NextFlow bao gồm các dịch vụ AI, automation, monitoring,
+#        và quản lý nội dung được tối ưu hóa cho môi trường production
+# Phiên bản: 2.0
+# Cập nhật: 2025
+# ============================================================================
+
+# ĐỊNH NGHĨA CÁC VOLUMES - LƯU TRỮ DỮ LIỆU BỀN VỮNG
+# ============================================================================
+# Volumes được sử dụng để lưu trữ dữ liệu quan trọng của các service
+# Dữ liệu sẽ được bảo toàn ngay cả khi container bị xóa hoặc khởi động lại
+volumes:
+  # === DỊCH VỤ AI VÀ AUTOMATION ===
+  n8n_storage: # Lưu trữ workflows, credentials và dữ liệu n8n
+  flowise: # Lưu trữ AI flows, chatbots và cấu hình Flowise
+  ollama_storage: # Lưu trữ các mô hình AI (LLM) đã tải xuống
+  qdrant_storage: # Lưu trữ vector embeddings cho tìm kiếm semantic
+  qdrant_snapshots: # Lưu trữ backup snapshots của Qdrant
+  open-webui: # Lưu trữ cấu hình và dữ liệu giao diện chat AI
+  langflow_data: # Lưu trữ workflows và cấu hình Langflow
+  langflow_logs: # Lưu trữ logs của Langflow
+
+  # === CƠ SỞ DỮ LIỆU ===
+  postgres_storage: # Lưu trữ dữ liệu PostgreSQL (chính)
+  redis_data: # Lưu trữ cache và session Redis
+  mariadb_data: # Lưu trữ dữ liệu MariaDB cho WordPress
+
+  # === GIÁM SÁT VÀ LOGGING ===
+  prometheus_data: # Lưu trữ metrics và time-series data
+  grafana_data: # Lưu trữ dashboards và cấu hình Grafana
+  loki_data: # Lưu trữ logs tập trung từ tất cả services
+  jaeger_data: # Lưu trữ distributed tracing data
+
+  # === MESSAGING VÀ QUEUE ===
+  rabbitmq_data: # Lưu trữ messages và queue configuration
+
+  # === BẢO MẬT VÀ XÁC THỰC ===
+  keycloak_data: # Lưu trữ cấu hình SSO và user management
+
+  # === QUẢN LÝ MÃ NGUỒN ===
+  gitlab_config: # Cấu hình GitLab (có thể dùng bind mount)
+  gitlab_logs: # Logs của GitLab
+  gitlab_data: # Repositories, issues, merge requests
+  gitlab_backups: # Backup tự động của GitLab
+
+  # === MAIL SERVER ===
+  stalwart_config: # Cấu hình Stalwart Mail Server
+  stalwart_data: # Dữ liệu email và mailboxes
+  stalwart_logs: # Logs của mail server
+
+  # === QUẢN LÝ NỘI DUNG ===
+  wordpress_data:
+    # Themes, plugins, uploads WordPress
+
+    # ĐỊNH NGHĨA MẠNG - NETWORK CONFIGURATION
+    # ============================================================================
+    # Tạo mạng bridge để các container có thể giao tiếp với nhau
+    # Tất cả services sẽ được kết nối vào mạng này để đảm bảo connectivity
+networks:
+  demo:
+    driver: bridge # Sử dụng bridge driver cho mạng nội bộ
+    name: nextflow_network # Tên mạng rõ ràng
+    ipam:
+      # IP Address Management
+      config:
+        - subnet: 172.20.0.0/16 # Dải IP cho mạng nội bộ
+
+# CẤU HÌNH MẶC ĐỊNH CHO TẤT CẢ SERVICES
+# ============================================================================
+# Template này sẽ được kế thừa bởi tất cả services để đảm bảo tính nhất quán
+x-default-opts: &default-opts
+  restart: unless-stopped # Tự động khởi động lại khi container bị lỗi (trừ khi dừng thủ công)
+  networks: [ 'demo' ] # Kết nối tất cả services vào mạng chung
+  logging:
+    # Cấu hình logging thống nhất
+    driver: "json-file" # Sử dụng JSON format cho logs
+    options:
+      max-size: "10m" # Giới hạn mỗi file log tối đa 10MB
+      max-file: "3" # Giữ tối đa 3 file log (rotation)
+      compress: "true" # Nén logs cũ để tiết kiệm dung lượng
+
+# CẤU HÌNH TEMPLATE CHO N8N SERVICES
+# ============================================================================
+# Template chung cho tất cả các instance của n8n (main, worker, webhook)
+# Đảm bảo cấu hình nhất quán và dễ bảo trì
+x-n8n: &service-n8n
+  <<: *default-opts # Kế thừa cấu hình mặc định
+  image: n8nio/n8n:latest
+  environment:
+    # === CẤU HÌNH CỞ SỞ DỮ LIỆU ===
+    - DB_TYPE=postgresdb # Loại database
+    - DB_POSTGRESDB_HOST=postgres # Host PostgreSQL
+    - DB_POSTGRESDB_USER=${POSTGRES_USER} # Username database
+    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD} # Password database
+    - DB_POSTGRESDB_DATABASE=nextflow_n8n # Tên database riêng cho n8n
+
+    # === CẤU HÌNH BẢO MẬT ===
+    - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY} # Khóa mã hóa cho credentials
+    - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET} # JWT secret cho xác thực
+
+    # === CẤU HÌNH CHỨC NĂNG ===
+    - N8N_DIAGNOSTICS_ENABLED=false # Tắt gửi dữ liệu chẩn đoán về n8n.io
+    - N8N_PERSONALIZATION_ENABLED=false # Tắt thu thập dữ liệu cá nhân hóa
+    - WEBHOOK_URL=${N8N_URL} # URL webhook từ biến môi trường
+
+    # === CẤU HÌNH REDIS QUEUE ===
+    - QUEUE_BULL_REDIS_HOST=redis # Host Redis cho queue
+    - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD:-nextflow@2025} # Password Redis
+
+  # === DEPENDENCIES - PHỤ THUỘC ===
+  depends_on:
+    postgres:
+      condition: service_healthy # Đợi PostgreSQL sẵn sàng
+    redis:
+      condition: service_healthy # Đợi Redis sẵn sàng
+
+# CẤU HÌNH TEMPLATE CHO OLLAMA SERVICES
+# ============================================================================
+# Template cho Ollama - Công cụ chạy mô hình AI ngôn ngữ lớn (LLM) trên máy local
+# LLM = Large Language Model (Mô hình ngôn ngữ lớn)
+# Inference engine = Công cụ suy luận AI
+# Hỗ trợ cả CPU và GPU, tự động tải các mô hình AI cần thiết
+x-ollama: &service-ollama
+  <<: *default-opts
+  image: ollama/ollama:latest
+  volumes:
+    - ollama_storage:/root/.ollama # Lưu trữ mô hình AI đã tải (có thể rất lớn)
+  environment:
+    - OLLAMA_ORIGINS=* # Cho phép CORS (Cross-Origin Resource Sharing - Chia sẻ tài nguyên giữa các domain) từ mọi nguồn
+    - OLLAMA_HOST=0.0.0.0 # Lắng nghe trên tất cả giao diện mạng (interfaces)
+  # LƯU Ý: Không sử dụng healthcheck vì Ollama image thiếu các công cụ kiểm tra cần thiết
+  # Thay vào đó sử dụng depends_on và startup delay (độ trễ khởi động)
+
+  # CẤU HÌNH TEMPLATE CHO VIỆC TẢI MÔ HÌNH OLLAMA
+  # ============================================================================
+  # Service khởi tạo (init service) để tự động tải các mô hình AI cần thiết
+  # Chạy một lần sau khi Ollama khởi động thành công
+x-init-ollama: &init-ollama
+  <<: *default-opts
+  image: ollama/ollama:latest
+  volumes:
+    - ollama_storage:/root/.ollama # Chia sẻ bộ nhớ lưu trữ với Ollama chính
+  entrypoint: /bin/sh # Sử dụng shell (giao diện dòng lệnh) để chạy script
+  extra_hosts:
+    - "host.docker.internal:host-gateway" # Cho phép truy cập máy chủ host nếu cần
+  environment:
+    - OLLAMA_HOST=ollama:11434 # Kết nối đến Ollama service
+  command:
+    - "-c"
+    - |
+      # === SCRIPT TỰ ĐỘNG TẢI MÔ HÌNH AI ===
+      echo "🚀 Bắt đầu quá trình tải mô hình AI..."
+
+      # Đợi Ollama service khởi động hoàn toàn
+      echo "⏳ Đợi Ollama khởi động (30 giây)..."
+      sleep 30
+
+      # Kiểm tra kết nối với Ollama
+      echo "🔍 Kiểm tra kết nối với Ollama..."
+      for i in {1..10}; do
+        if OLLAMA_HOST=ollama:11434 ollama list >/dev/null 2>&1; then
+          echo "✅ Kết nối thành công với Ollama!"
+          break
+        fi
+        echo "❌ Lần thử $i thất bại, đợi thêm 10 giây..."
+        sleep 10
+      done
+
+      # Tải các mô hình AI cần thiết
+      echo "📥 Bắt đầu tải các mô hình AI..."
+
+      # Mô hình chính cho chat và completion (hoàn thành văn bản)
+      echo "📥 Đang tải Llama 3.1 (mô hình chính cho trò chuyện)..."
+      OLLAMA_HOST=ollama:11434 ollama pull llama3.1
+
+      # Mô hình embedding (nhúng văn bản thành vector) cho tìm kiếm ngữ nghĩa
+      echo "📥 Đang tải Nomic Embed Text (chuyển đổi văn bản thành vector)..."
+      OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text
+
+      # Mô hình nhẹ cho các tác vụ đơn giản
+      echo "📥 Đang tải Gemma 2:2B (mô hình nhẹ - 2 tỷ tham số)..."
+      OLLAMA_HOST=ollama:11434 ollama pull gemma2:2b
+
+      # Mô hình reasoning (suy luận logic) mới
+      echo "📥 Đang tải DeepSeek R1:7B (mô hình suy luận - 7 tỷ tham số)..."
+      OLLAMA_HOST=ollama:11434 ollama pull deepseek-r1:7b
+
+      echo "🎉 Hoàn thành tải tất cả mô hình AI!"
+      echo "📋 Danh sách mô hình đã tải:"
+      OLLAMA_HOST=ollama:11434 ollama list
+
+# ============================================================================
+# ĐỊNH NGHĨA CÁC SERVICES - MICROSERVICES ARCHITECTURE
+# ============================================================================
+# Tất cả các dịch vụ được tổ chức theo nhóm chức năng để dễ quản lý
+# Mỗi service có cấu hình tối ưu cho production environment
+
+services:
+  # ============================================================================
+  # NHÓM DỊCH VỤ AI VÀ AUTOMATION
+  # ============================================================================
+
+  # FLOWISE - CÔNG CỤ XÂY DỰNG LUỒNG CÔNG VIỆC AI BẰNG GIAO DIỆN KÉO THẢ
+  # ----------------------------------------------------------------------------
+  # Công cụ no-code (không cần lập trình) để xây dựng AI agents (đại lý AI), chatbots (bot trò chuyện) và workflows (luồng công việc)
+  # Tích hợp với LLMs (Mô hình ngôn ngữ lớn), vector databases (cơ sở dữ liệu vector) và external APIs (API bên ngoài)
+  flowise:
+    <<: *default-opts
+    image: flowiseai/flowise:latest
+    container_name: flowise
+    hostname: flowise # Tên máy chủ rõ ràng cho service discovery (khám phá dịch vụ)
+
+    # === CẤU HÌNH ENVIRONMENT ===
+    environment:
+      # Cấu hình cơ bản
+      - PORT=3000 # Port internal của Flowise
+      - NODE_ENV=production # Chế độ production
+
+      # Xác thực và bảo mật
+      - FLOWISE_USERNAME=${FLOWISE_USERNAME:-admin} # Username đăng nhập
+      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD:-password} # Password đăng nhập
+      - FLOWISE_SECRETKEY_OVERWRITE=${FLOWISE_SECRET_KEY:-your-secret-key} # Secret key
+
+      # Cấu hình Redis cache
+      - REDIS_HOST=redis # Host Redis
+      - REDIS_PORT=6379 # Port Redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-nextflow@2025} # Password Redis
+
+      # Cấu hình database (nếu cần)
+      - DATABASE_TYPE=sqlite # Sử dụng SQLite cho đơn giản
+      - DATABASE_PATH=/root/.flowise # Đường dẫn database
+
+      # Cấu hình logging
+      - LOG_LEVEL=info # Mức độ logging
+      - LOG_PATH=/root/.flowise/logs # Đường dẫn logs
+
+    # === PORT MAPPING ===
+    ports:
+      - "4001:3000" # Expose port 3000 ra host:4001
+
+    # === NETWORK CONFIGURATION ===
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Cho phép truy cập host
+
+    # === VOLUME MOUNTS ===
+    volumes:
+      - flowise:/root/.flowise # Persistent storage cho Flowise
+      - ./shared:/data/shared # Shared folder với host
+
+    # === STARTUP CONFIGURATION ===
+    entrypoint: /bin/sh -c "sleep 3; flowise start" # Delay nhỏ để tránh race condition
+
+    # === DEPENDENCIES ===
+    depends_on:
+      redis:
+        condition: service_healthy # Đợi Redis sẵn sàng
+
+    # === HEALTH CHECK ===
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/ping" ]
+      interval: 30s # Kiểm tra mỗi 30 giây
+      timeout: 10s # Timeout sau 10 giây
+      retries: 3 # Thử lại 3 lần
+      start_period: 60s # Đợi 60 giây trước khi bắt đầu check
+
+    # === RESOURCE LIMITS ===
+    deploy:
+      resources:
+        limits:
+          cpus: '2' # Tối đa 2 CPU cores
+          memory: 4G # Tối đa 4GB RAM
+        reservations:
+          cpus: '0.5' # Đảm bảo ít nhất 0.5 CPU
+          memory: 1G # Đảm bảo ít nhất 1GB RAM
+
+    # === LABELS FOR MONITORING ===
+    labels:
+      - "traefik.enable=true" # Enable Traefik routing (nếu dùng)
+      - "service.group=ai" # Nhóm service AI
+      - "service.type=frontend" # Loại service
+
+  # OPEN WEBUI - GIAO DIỆN CHAT HIỆN ĐẠI CHO AI
+  # ----------------------------------------------------------------------------
+  # Giao diện chat hiện đại tương tự ChatGPT để tương tác với LLMs cục bộ (local LLMs)
+  # Hỗ trợ nhiều mô hình (multiple models), lịch sử trò chuyện và tải file lên
+  open-webui:
+    <<: *default-opts
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: open-webui
+    hostname: open-webui # Tên máy chủ cho khám phá dịch vụ
+
+    # === CẤU HÌNH ENVIRONMENT ===
+    environment:
+      # Cấu hình Ollama connection
+      - OLLAMA_BASE_URL=http://ollama:11434 # URL kết nối đến Ollama
+      - WEBUI_SECRET_KEY=${OPENWEBUI_SECRET_KEY:-your-secret-key} # Secret key
+
+      # Cấu hình authentication
+      - WEBUI_AUTH=true # Bật xác thực
+      - DEFAULT_USER_ROLE=user # Role mặc định cho user mới
+
+      # Cấu hình features
+      - ENABLE_SIGNUP=true # Cho phép đăng ký user mới
+      - ENABLE_LOGIN_FORM=true # Hiển thị form đăng nhập
+      - ENABLE_WEB_SEARCH=false # Tắt web search (có thể bật sau)
+
+      # Cấu hình file upload
+      - ENABLE_IMAGE_GENERATION=true # Bật tạo ảnh (nếu model hỗ trợ)
+      - MAX_FILE_SIZE=10485760 # Giới hạn file upload 10MB
+
+      # Cấu hình logging
+      - LOG_LEVEL=INFO # Mức độ logging
+
+    # === PORT MAPPING ===
+    ports:
+      - "5080:8080" # Expose port 8080 ra host:5080
+
+    # === VOLUME MOUNTS ===
+    volumes:
+      - open-webui:/app/backend/data # Persistent storage
+      - ./shared:/data/shared # Shared folder cho file uploads
+
+    # === DEPENDENCIES ===
+    # depends_on:
+    #   - ollama-cpu                  # Phụ thuộc vào Ollama (CPU version) - Commented để tránh lỗi khi không dùng profile cpu
+
+    # === HEALTH CHECK ===
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s # Kiểm tra mỗi 30 giây
+      timeout: 10s # Timeout sau 10 giây
+      retries: 3 # Thử lại 3 lần
+      start_period: 30s # Đợi 30 giây trước khi bắt đầu check
+
+    # === RESOURCE LIMITS ===
+    deploy:
+      resources:
+        limits:
+          cpus: '2' # Tối đa 2 CPU cores
+          memory: 3G # Tối đa 3GB RAM
+        reservations:
+          cpus: '0.5' # Đảm bảo ít nhất 0.5 CPU
+          memory: 1G # Đảm bảo ít nhất 1GB RAM
+
+    # === LABELS FOR MONITORING ===
+    labels:
+      - "traefik.enable=true" # Enable Traefik routing
+      - "service.group=ai" # Nhóm service AI
+      - "service.type=frontend" # Loại service
+
+  # POSTGRESQL - MÁY CHỦ CƠ SỞ DỮ LIỆU CHÍNH
+  # ----------------------------------------------------------------------------
+  # Cơ sở dữ liệu chính cho toàn bộ hệ thống NextFlow
+  # Hỗ trợ nhiều cơ sở dữ liệu (multiple databases) cho các dịch vụ khác nhau
+  postgres:
+    <<: *default-opts
+    image: postgres:16-alpine # Phiên bản Alpine (nhẹ và bảo mật)
+    container_name: postgres
+    hostname: postgres # Tên máy chủ cho khám phá dịch vụ
+    restart: always
+
+    # === CẤU HÌNH ENVIRONMENT ===
+    environment:
+      # Database configuration
+      POSTGRES_USER: ${POSTGRES_USER:-nextflow} # User chính
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nextflow@2025} # Password
+      POSTGRES_DB: ${POSTGRES_DB:-nextflow} # Database chính
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-nextflow_n8n,keycloak,gitlabhq_production}
+      PGDATA: /var/lib/postgresql/data/pgdata # Data directory
+
+      # PostgreSQL specific settings
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C # Init args
+
+      # Tối ưu hiệu năng (Performance tuning)
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements # Thư viện mở rộng thống kê
+      POSTGRES_MAX_CONNECTIONS: 200 # Tối đa 200 kết nối đồng thời
+      POSTGRES_SHARED_BUFFERS: 256MB # Bộ nhớ đệm chia sẻ
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB # Gợi ý kích thước cache hệ thống
+      POSTGRES_WORK_MEM: 4MB # Bộ nhớ làm việc cho mỗi truy vấn
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB # Bộ nhớ cho tác vụ bảo trì
+
+      # Cấu hình ghi log
+      POSTGRES_LOG_STATEMENT: mod # Ghi log các thay đổi dữ liệu
+      POSTGRES_LOG_MIN_DURATION_STATEMENT: 1000 # Ghi log truy vấn chậm (>1 giây)
+      POSTGRES_LOG_CHECKPOINTS: on # Ghi log checkpoint (điểm kiểm tra)
+      POSTGRES_LOG_CONNECTIONS: on # Ghi log kết nối
+      POSTGRES_LOG_DISCONNECTIONS: on # Ghi log ngắt kết nối
+
+    # === PORT MAPPING ===
+    ports:
+      - "5432:5432" # Standard PostgreSQL port
+
+    # === VOLUME MOUNTS ===
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data # Persistent data
+      - ./postgres/init:/docker-entrypoint-initdb.d # Init scripts
+      - ./postgres/conf:/etc/postgresql # Custom config
+      - ./postgres/logs:/var/log/postgresql # Log files
+
+    # === HEALTH CHECK ===
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nextflow} -d ${POSTGRES_DB:-nextflow}" ]
+      interval: 30s # Kiểm tra mỗi 30 giây
+      timeout: 10s # Timeout sau 10 giây
+      retries: 10 # Thử lại 10 lần (database cần thời gian)
+      start_period: 60s # Đợi 60 giây trước khi bắt đầu check
+
+    # === RESOURCE LIMITS ===
+    deploy:
+      resources:
+        limits:
+          cpus: '4' # Tối đa 4 CPU cores
+          memory: 6G # Tối đa 6GB RAM
+        reservations:
+          cpus: '1' # Đảm bảo ít nhất 1 CPU
+          memory: 2G # Đảm bảo ít nhất 2GB RAM
+
+    # === LABELS FOR MONITORING ===
+    labels:
+      - "traefik.enable=false" # Không expose qua Traefik
+      - "service.group=database" # Nhóm service database
+      - "service.type=backend" # Loại service backend
+      - "backup.enable=true" # Enable backup cho service này
+
+  # N8N - NỀN TẢNG TỰ ĐỘNG HÓA LUỒNG CÔNG VIỆC
+  # ----------------------------------------------------------------------------
+  # Nền tảng tự động hóa workflow (luồng công việc) mạnh mẽ với giao diện kéo thả
+  # Kết nối và tự động hóa các ứng dụng, dịch vụ và APIs
+  # Ghi chú: n8n-import service đã được loại bỏ vì chạy rất chậm khi khởi động lại Docker
+  n8n:
+    <<: *service-n8n # Kế thừa template cấu hình n8n
+    container_name: n8n
+    hostname: n8n # Tên máy chủ cho khám phá dịch vụ
+
+    # === PORT MAPPING ===
+    ports:
+      - "7856:5678" # Custom port 7856 thay vì port mặc định 5678
+
+    # === CẤU HÌNH ENVIRONMENT ===
+    environment:
+      # === CƠ SỞ DỮ LIỆU ===
+      - DB_TYPE=postgresdb # Loại database
+      - DB_POSTGRESDB_HOST=postgres # PostgreSQL host
+      - DB_POSTGRESDB_USER=${POSTGRES_USER} # Database user
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD} # Database password
+      - DB_POSTGRESDB_DATABASE=nextflow_n8n # Database name
+
+      # === BẢO MẬT & XÁC THỰC ===
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY} # Khóa mã hóa workflows
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET} # JWT secret
+      - WEBHOOK_URL=${N8N_URL} # URL webhook public
+
+      # === CẤU HÌNH REDIS QUEUE (HÀNG ĐỢI) ===
+      - QUEUE_BULL_REDIS_HOST=redis # Máy chủ Redis cho hàng đợi tác vụ
+      - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD:-nextflow@2025} # Mật khẩu Redis
+
+      # === CHỨC NĂNG & TÍNH NĂNG ===
+      - N8N_DIAGNOSTICS_ENABLED=false # Tắt gửi dữ liệu chẩn đoán về n8n.io
+      - N8N_PERSONALIZATION_ENABLED=false # Tắt thu thập dữ liệu cá nhân hóa
+      - N8N_METRICS_ENABLED=true # Bật metrics (số liệu) cho giám sát
+      - N8N_HIRING_BANNER_ENABLED=false # Tắt banner quảng cáo tuyển dụng
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false # Tắt thông báo phiên bản mới
+      - N8N_TEMPLATES_ENABLED=true # Bật mẫu workflow có sẵn
+      - N8N_TEMPLATES_HOST=https://api.n8n.io/ # Máy chủ cung cấp mẫu workflow
+      - N8N_CACHE_ENABLED=true # Bật bộ nhớ đệm để tăng hiệu năng
+
+      # === MẠNG & GIAO TIẾP ===
+      - N8N_PUSH_BACKEND=websocket # Sử dụng websocket cho giao tiếp thời gian thực
+      - N8N_EDITOR_BASE_URL=https://n8n.nextflow.vn # URL cơ sở cho trình chỉnh sửa
+      - N8N_HOST=n8n.nextflow.vn # Tên máy chủ công khai
+      - N8N_PROTOCOL=https # Giao thức HTTPS bảo mật
+      - N8N_PORT=5678 # Cổng nội bộ
+
+      # === RUNTIME CONFIGURATION ===
+      - NODE_ENV=production # Chế độ production
+      - EXECUTIONS_PROCESS=main # Xử lý executions trong main process
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh # Múi giờ Việt Nam
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true # Tự động sửa file permissions
+
+      # === LOGGING ===
+      - N8N_LOG_LEVEL=info # Mức độ logging
+      - N8N_LOG_OUTPUT=console # Output logs ra console
+
+    # === VOLUME MOUNTS ===
+    volumes:
+      - n8n_storage:/home/node/.n8n # Persistent n8n data
+      - ./n8n/backup:/backup # Backup directory
+      - ./shared:/data/shared # Shared files access
+      - ./n8n/workflows:/home/node/workflows # Workflow templates
+      - ./n8n/credentials:/home/node/credentials # Credential templates
+
+    # === DEPENDENCIES ===
+    depends_on:
+      postgres:
+        condition: service_healthy # Đợi PostgreSQL sẵn sàng
+      redis:
+        condition: service_healthy # Đợi Redis sẵn sàng
+
+    # === HEALTH CHECK ===
+    # Note: Tạm thời tắt health check vì n8n không có endpoint /healthz ổn định
+    # và có thể gây lỗi kết nối trong một số trường hợp
+    # healthcheck:
+    #   test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5678/" ]
+    #   interval: 60s
+    #   timeout: 15s
+    #   retries: 3
+    #   start_period: 120s
+
+    # === RESOURCE LIMITS ===
+    deploy:
+      resources:
+        limits:
+          cpus: '4' # Tối đa 4 CPU cores
+          memory: 6G # Tối đa 6GB RAM
+        reservations:
+          cpus: '4' # Đảm bảo ít nhất 1 CPU
+          memory: 4G # Đảm bảo ít nhất 2GB RAM
+
+    # === LABELS FOR MONITORING ===
+    labels:
+      - "traefik.enable=true" # Enable Traefik routing
+      - "service.group=automation" # Nhóm service automation
+      - "service.type=frontend" # Loại service frontend
+      - "backup.enable=true" # Enable backup workflows
+
+  # QDRANT - CƠ SỞ DỮ LIỆU VECTOR CHO AI EMBEDDINGS
+  # ----------------------------------------------------------------------------
+  # Cơ sở dữ liệu vector hiệu năng cao cho việc lưu trữ và tìm kiếm embeddings (vector nhúng)
+  # Embeddings = Vector biểu diễn văn bản/hình ảnh dưới dạng số học
+  # Hỗ trợ tìm kiếm tương tự (similarity search), lọc dữ liệu và đánh chỉ mục thời gian thực
+  qdrant:
+    <<: *default-opts
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    hostname: qdrant # Tên máy chủ cho khám phá dịch vụ
+
+    # === CẤU HÌNH ENVIRONMENT ===
+    environment:
+      # Cấu hình dịch vụ Qdrant
+      - QDRANT__SERVICE__HTTP_PORT=6333 # Cổng HTTP API
+      - QDRANT__SERVICE__GRPC_PORT=6334 # Cổng gRPC (giao thức RPC hiệu năng cao)
+      - QDRANT__LOG_LEVEL=INFO # Mức độ ghi log
+
+      # Cấu hình lưu trữ
+      - QDRANT__STORAGE__STORAGE_PATH=/qdrant/storage # Đường dẫn lưu trữ dữ liệu
+      - QDRANT__STORAGE__SNAPSHOTS_PATH=/qdrant/snapshots # Đường dẫn lưu bản sao lưu
+      - QDRANT__STORAGE__ON_DISK_PAYLOAD=true # Lưu payload (dữ liệu kèm theo) trên đĩa
+
+      # Tối ưu hiệu năng
+      - QDRANT__SERVICE__MAX_REQUEST_SIZE_MB=32 # Kích thước tối đa mỗi yêu cầu (32MB)
+      - QDRANT__SERVICE__MAX_WORKERS=0 # Tự động phát hiện số worker (luồng xử lý)
+      - QDRANT__STORAGE__WAL_CAPACITY_MB=32 # Dung lượng WAL (Write-Ahead Log - Log ghi trước)
+      - QDRANT__STORAGE__WAL_SEGMENTS_AHEAD=0 # Số segment WAL dự trữ
+
+      # Bảo mật
+      - QDRANT__SERVICE__ENABLE_CORS=true # Bật CORS (chia sẻ tài nguyên cross-origin)
+      - QDRANT__CLUSTER__ENABLED=false # Tắt chế độ cluster (cụm máy chủ)
+
+    # === PORT MAPPING ===
+    ports:
+      - "6333:6333" # HTTP API port
+      - "6334:6334" # gRPC port (optional)
+
+    # === VOLUME MOUNTS ===
+    volumes:
+      - qdrant_storage:/qdrant/storage # Vector data storage
+      - qdrant_snapshots:/qdrant/snapshots # Backup snapshots
+      - ./qdrant/config:/qdrant/config # Custom configuration
+
+    # === HEALTH CHECK ===
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:6333/health" ]
+      interval: 30s # Kiểm tra mỗi 30 giây
+      timeout: 10s # Timeout sau 10 giây
+      retries: 3 # Thử lại 3 lần
+      start_period: 30s # Đợi 30 giây trước khi bắt đầu check
+
+    # === RESOURCE LIMITS ===
+    deploy:
+      resources:
+        limits:
+          cpus: '4' # Tối đa 4 CPU cores
+          memory: 8G # Tối đa 8GB RAM (vector DB cần nhiều RAM)
+        reservations:
+          cpus: '2' # Đảm bảo ít nhất 1 CPU
+          memory: 4G # Đảm bảo ít nhất 2GB RAM
+
+    # === LABELS FOR MONITORING ===
+    labels:
+      - "traefik.enable=false" # Không expose qua Traefik (internal use)
+      - "service.group=ai" # Nhóm service AI
+      - "service.type=database" # Loại service database
+      - "backup.enable=true" # Enable backup cho vectors
+
+  # Ollama CPU - Phiên bản Ollama cho CPU
+  ollama-cpu:
+    profiles: [ "cpu" ] # Chỉ chạy khi sử dụng profile cpu
+    <<: *service-ollama
+    container_name: ollama
+    ports:
+      - "11434:11434" # Expose port Ollama
+    deploy:
+      resources:
+        limits:
+          cpus: '4' # Giới hạn tối đa 4 CPU
+          memory: 8G # Giới hạn tối đa 8GB RAM
+        reservations:
+          cpus: '2' # Đảm bảo có ít nhất 2 CPU
+          memory: 4G # Đảm bảo có ít nhất 4GB RAM
+
+  # Ollama GPU - Phiên bản Ollama cho GPU NVIDIA
+  ollama-gpu:
+    profiles: [ "gpu-nvidia" ] # Chỉ chạy khi sử dụng profile gpu-nvidia
+    <<: *service-ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia # Sử dụng NVIDIA GPU
+              count: 1 # Sử dụng 1 GPU
+              capabilities: [ gpu ] # Yêu cầu khả năng GPU
+
+  # Service tải mô hình cho Ollama CPU
+  ollama-pull-llama-cpu:
+    profiles: [ "cpu" ]
+    <<: *init-ollama
+    container_name: ollama-pull-llama
+    depends_on:
+      - ollama-cpu # Đơn giản hóa phụ thuộc
+    restart: "no" # Chỉ chạy một lần và không khởi động lại
+
+  # Service tải mô hình cho Ollama GPU
+  ollama-pull-llama-gpu:
+    profiles: [ "gpu-nvidia" ]
+    <<: *init-ollama
+    container_name: ollama-pull-llama
+    depends_on:
+      - ollama-gpu # Đơn giản hóa phụ thuộc
+    restart: "no" # Chỉ chạy một lần và không khởi động lại
+
+  # Redis - Hệ thống cache (bộ nhớ đệm) in-memory
+  redis:
+    <<: *default-opts
+    image: redis:7.2-alpine # Sử dụng phiên bản Alpine (Linux nhẹ)
+    container_name: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-nextflow@2025} --appendonly yes
+    ports:
+      - "6379:6379" # Mở cổng Redis
+    volumes:
+      - redis_data:/data # Lưu trữ dữ liệu bền vững
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+
+  # Redis Commander - Giao diện web để quản lý Redis
+  redis-commander:
+    <<: *default-opts
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-nextflow@2025}
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-nextflow@2025}
+    ports:
+      - "8082:8081" # Giao diện web cho Redis Commander
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Dịch vụ sao lưu tự động cho PostgreSQL
+  backup:
+    image: postgres:16-alpine
+    container_name: backup
+    restart: "no" # Chỉ chạy một lần
+    volumes:
+      - ./backups/postgres:/backups # Thư mục lưu trữ bản sao lưu
+    command: |
+      bash -c '
+      mkdir -p /backups
+      export PGPASSWORD=$$POSTGRES_PASSWORD
+      TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
+
+      echo "===== BẮT ĐẦU SAO LƯU POSTGRESQL ====="
+      echo "Thời gian bắt đầu: $$(date)"
+
+      # Kiểm tra kết nối đến PostgreSQL
+      echo "Kiểm tra kết nối đến PostgreSQL..."
+      if ! pg_isready -h postgres -U $$POSTGRES_USER; then
+        echo "Không thể kết nối đến PostgreSQL. Đang thử lại..."
+        sleep 10
+        if ! pg_isready -h postgres -U $$POSTGRES_USER; then
+          echo "Không thể kết nối đến PostgreSQL sau khi thử lại. Hủy bỏ sao lưu."
+          exit 1
+        fi
+      fi
+
+      # Liệt kê các cơ sở dữ liệu
+      echo "Các cơ sở dữ liệu hiện có:"
+      psql -h postgres -U $$POSTGRES_USER -c "\l"
+
+      # Sao lưu cơ sở dữ liệu chính nextflow
+      echo "Đang sao lưu cơ sở dữ liệu nextflow..."
+      pg_dump -h postgres -U $$POSTGRES_USER -d nextflow -F c -b -v -f /backups/nextflow_$$TIMESTAMP.backup
+
+      # Sao lưu cơ sở dữ liệu n8n
+      echo "Đang sao lưu cơ sở dữ liệu nextflow_n8n..."
+      pg_dump -h postgres -U $$POSTGRES_USER -d nextflow_n8n -F c -b -v -f /backups/nextflow_n8n_$$TIMESTAMP.backup
+
+      # Sao lưu cơ sở dữ liệu keycloak
+      echo "Đang sao lưu cơ sở dữ liệu keycloak..."
+      pg_dump -h postgres -U $$POSTGRES_USER -d keycloak -F c -b -v -f /backups/keycloak_$$TIMESTAMP.backup
+
+      # Sao lưu tất cả các cơ sở dữ liệu
+      echo "Đang sao lưu tất cả các cơ sở dữ liệu..."
+      pg_dumpall -h postgres -U $$POSTGRES_USER -f /backups/all_databases_$$TIMESTAMP.sql
+
+      # Xóa các tệp sao lưu cũ hơn 7 ngày
+      echo "Đang xóa các tệp sao lưu cũ..."
+      find /backups -type f -mtime +7 -delete
+
+      echo "Thời gian kết thúc: $$(date)"
+      echo "===== HOÀN THÀNH SAO LƯU POSTGRESQL ====="
+
+      # Hiển thị thông tin về các tệp sao lưu đã tạo
+      echo "Các tệp sao lưu đã tạo:"
+      ls -lh /backups/
+
+      # Hiển thị dung lượng thư mục sao lưu
+      echo "Tổng dung lượng thư mục sao lưu:"
+      du -sh /backups/
+      '
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-root}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nextflow@2025}
+    networks:
+      - demo
+    depends_on:
+      postgres:
+        condition: service_healthy # Chỉ chạy khi PostgreSQL đã sẵn sàng
+    profiles: [ "backup" ] # Chỉ chạy khi sử dụng profile sao lưu
+
+  # Cloudflare Tunnel "nextflow" - Đường hầm bảo mật cho dịch vụ chính
+  cloudflare-tunnel:
+    <<: *default-opts
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    hostname: cloudflare-tunnel
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared/config/cloudflared-config.yml:/etc/cloudflared/config.yml
+      - ./cloudflared/credentials/credentials.json:/etc/cloudflared/credentials.json
+    environment:
+      - TUNNEL_ORIGIN_CERT=/etc/cloudflared/credentials.json
+      - NO_AUTOUPDATE=true # Tắt tự động cập nhật
+    networks:
+      - demo
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Kết nối đến máy chủ host
+    depends_on:
+      - wordpress
+      - mariadb
+    restart: unless-stopped
+
+  # Prometheus - Hệ thống thu thập metrics (chỉ số hiệu năng)
+  prometheus:
+    <<: *default-opts
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle' # Cho phép reload cấu hình động
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    profiles: [ "monitoring" ]
+
+  # Grafana - Hệ thống hiển thị dashboard (bảng điều khiển trực quan)
+  grafana:
+    <<: *default-opts
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3030:3000"
+    volumes:
+      - ./config/monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./config/monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false # Tắt đăng ký tự do
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    profiles: [ "monitoring" ]
+
+  # Loki - Hệ thống thu thập logs (nhật ký hệ thống)
+  loki:
+    <<: *default-opts
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./config/monitoring/loki-config.yml:/etc/loki/loki-config.yml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3100/ready" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    profiles: [ "monitoring" ]
+
+  # Promtail - Agent thu thập logs từ các container
+  promtail:
+    <<: *default-opts
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - ./config/monitoring/promtail-config.yml:/etc/promtail/promtail-config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro # Chỉ đọc logs container
+      - /var/run/docker.sock:/var/run/docker.sock # Kết nối Docker daemon
+    command: -config.file=/etc/promtail/promtail-config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+    profiles: [ "monitoring" ]
+
+  # Node Exporter - Thu thập metrics từ máy chủ host
+  node-exporter:
+    <<: *default-opts
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    volumes:
+      - /proc:/host/proc:ro # Thông tin tiến trình
+      - /sys:/host/sys:ro # Thông tin hệ thống
+      - /:/rootfs:ro # Thông tin filesystem
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    profiles: [ "monitoring" ]
+
+  # cAdvisor - Thu thập metrics từ các container Docker
+  cadvisor:
+    <<: *default-opts
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro # Root filesystem
+      - /var/run:/var/run:ro # Runtime information
+      - /sys:/sys:ro # System information
+      - /var/lib/docker/:/var/lib/docker:ro # Docker data
+      - /dev/disk/:/dev/disk:ro # Disk information
+    ports:
+      - "8081:8080"
+    profiles: [ "monitoring" ]
+
+  # RabbitMQ - Hệ thống message queue (hàng đợi tin nhắn)
+  rabbitmq:
+    <<: *default-opts
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672" # Cổng AMQP (giao thức tin nhắn)
+      - "15672:15672" # Cổng giao diện quản lý web
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-admin}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-/} # Virtual host mặc định
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "check_port_connectivity" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    profiles: [ "messaging" ]
+
+  # Keycloak - Hệ thống quản lý xác thực và phân quyền (Identity Provider)
+  keycloak:
+    <<: *default-opts
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    command: start-dev # Chế độ phát triển
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_DB=postgres # Sử dụng PostgreSQL
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/${KEYCLOAK_DB:-keycloak}
+      - KC_DB_USERNAME=${POSTGRES_USER:-root}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD:-nextflow@2025}
+      - KC_HOSTNAME=${KEYCLOAK_HOSTNAME:-keycloak.nextflow.vn}
+      - KC_HOSTNAME_STRICT=false # Không kiểm tra hostname nghiêm ngặt
+      - KC_HTTP_RELATIVE_PATH=/ # Đường dẫn gốc
+      - KC_PROXY=edge # Chế độ proxy
+      - KC_HTTP_ENABLED=true # Bật HTTP
+    ports:
+      - "8180:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    profiles: [ "auth" ]
+
+  # Jaeger - Hệ thống distributed tracing (theo dõi phân tán)
+  jaeger:
+    <<: *default-opts
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true # Bật OpenTelemetry Protocol
+    ports:
+      - "6831:6831/udp" # Jaeger thrift compact
+      - "6832:6832/udp" # Jaeger thrift binary
+      - "5778:5778" # Jaeger configs
+      - "16686:16686" # Giao diện web Jaeger
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "9411:9411" # Zipkin (tương thích)
+    volumes:
+      - jaeger_data:/badger
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:16686" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    profiles: [ "tracing" ]
+
+  # MariaDB - Cơ sở dữ liệu MySQL cho WordPress
+  mariadb:
+    <<: *default-opts
+    image: mariadb:11.2
+    container_name: mariadb
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=nextflow@2025 # Mật khẩu root MySQL
+      - MYSQL_DATABASE=nextflow # Tên cơ sở dữ liệu
+      - MYSQL_USER=admin # Tài khoản người dùng
+      - MYSQL_PASSWORD=nextflow@2025 # Mật khẩu người dùng
+    volumes:
+      - mariadb_data:/var/lib/mysql # Lưu trữ dữ liệu bền vững
+    ports:
+      - "3306:3306" # Cổng MySQL/MariaDB
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+  # WordPress - Hệ thống quản lý nội dung (CMS) cho landing page
+  wordpress:
+    <<: *default-opts
+    image: wordpress:6.8.1
+    container_name: wordpress
+    restart: always
+    environment:
+      - WORDPRESS_DB_HOST=mariadb # Máy chủ cơ sở dữ liệu
+      - WORDPRESS_DB_NAME=nextflow # Tên cơ sở dữ liệu
+      - WORDPRESS_DB_USER=admin # Tài khoản cơ sở dữ liệu
+      - WORDPRESS_DB_PASSWORD=nextflow@2025 # Mật khẩu cơ sở dữ liệu
+      - WORDPRESS_TABLE_PREFIX=wp_ # Tiền tố bảng WordPress
+    volumes:
+      - wordpress_data:/var/www/html # Dữ liệu WordPress
+      - ./wordpress/themes:/var/www/html/wp-content/themes # Giao diện
+      - ./wordpress/plugins:/var/www/html/wp-content/plugins # Plugin
+      - ./wordpress/uploads:/var/www/html/wp-content/uploads # Tệp tải lên
+    ports:
+      - "8080:80" # Cổng web WordPress
+    depends_on:
+      - mariadb
+
+  # LANGFLOW - LOW-CODE AI WORKFLOW PLATFORM
+  # ----------------------------------------------------------------------------
+  # Platform low-code/no-code để xây dựng và triển khai AI workflows phức tạp
+  # Tích hợp với LangChain, OpenAI, và các AI frameworks khác
+  langflow:
+    <<: *default-opts
+    image: langflowai/langflow:latest # Sử dụng phiên bản alpha stable
+    container_name: langflow
+    hostname: langflow # Hostname cho service discovery
+    user: "0:0" # Run as root để tránh permission issues
+
+    # === CẤU HÌNH ENVIRONMENT ===
+    environment:
+      # Cấu hình cơ sở dữ liệu - Sử dụng biến từ .env
+      - LANGFLOW_DATABASE_URL=${LANGFLOW_DATABASE_URL}
+
+      # Cấu hình bảo mật - Sử dụng biến từ .env
+      - LANGFLOW_SECRET_KEY=${LANGFLOW_SECRET_KEY}
+      - LANGFLOW_JWT_SECRET=${LANGFLOW_JWT_SECRET}
+      - LANGFLOW_SUPERUSER_PASSWORD=${LANGFLOW_SUPERUSER_PASSWORD}
+
+      # Cấu hình máy chủ - Sử dụng biến từ .env
+      - LANGFLOW_HOST=${LANGFLOW_HOST}
+      - LANGFLOW_PORT=${LANGFLOW_PORT}
+      - LANGFLOW_WORKERS=${LANGFLOW_WORKERS}
+      - LANGFLOW_ENV=${LANGFLOW_ENV}
+
+      # Cấu hình cache - Sử dụng biến từ .env
+      - LANGFLOW_CACHE_TYPE=${LANGFLOW_CACHE_TYPE}
+      - LANGFLOW_CACHE_SIZE=${LANGFLOW_CACHE_SIZE}
+      - LANGFLOW_REDIS_URL= # Disable Redis cache
+
+      # Cấu hình ghi log - Sử dụng biến từ .env
+      - LANGFLOW_LOG_LEVEL=${LANGFLOW_LOG_LEVEL}
+      - LANGFLOW_LOG_FILE=${LANGFLOW_LOG_FILE}
+      - LANGFLOW_DISABLE_LOGS=${LANGFLOW_DISABLE_LOGS}
+
+      # Cấu hình tính năng - Sử dụng biến từ .env
+      - LANGFLOW_AUTO_LOGIN=${LANGFLOW_AUTO_LOGIN}
+      - LANGFLOW_NEW_USER_IS_ACTIVE=${LANGFLOW_NEW_USER_IS_ACTIVE}
+      - LANGFLOW_MAX_FILE_SIZE_UPLOAD=${LANGFLOW_MAX_FILE_SIZE_UPLOAD}
+
+      # Cấu hình thư mục - Sử dụng biến từ .env
+      - LANGFLOW_CONFIG_DIR=${LANGFLOW_CONFIG_DIR}
+      - LANGFLOW_CACHE_DIR=${LANGFLOW_CACHE_DIR}
+      - LANGFLOW_STORE_ENVIRONMENT_VARIABLES=${LANGFLOW_STORE_ENVIRONMENT_VARIABLES}
+      - LANGFLOW_SAVE_DB_IN_CONFIG_DIR=${LANGFLOW_SAVE_DB_IN_CONFIG_DIR}
+
+    # === PORT MAPPING ===
+    ports:
+      - "7860:7860" # Langflow web interface
+
+    # === VOLUME MOUNTS ===
+    volumes:
+      - langflow_data:/app/data # Persistent data storage
+      - langflow_logs:/app/logs # Log files
+      - ./langflow/flows:/app/flows # Custom flows directory
+      - ./langflow/components:/app/components # Custom components
+      - ./shared:/data/shared # Shared folder
+
+    # === DEPENDENCIES ===
+    depends_on:
+      postgres:
+        condition: service_healthy # Đợi PostgreSQL sẵn sàng
+      redis:
+        condition: service_healthy # Đợi Redis sẵn sàng
+
+    # === NETWORK CONFIGURATION ===
+    networks:
+      - demo
+
+    # === HOST MAPPING để fix DNS issues ===
+    extra_hosts:
+      - "postgres:host-gateway" # Map postgres hostname to host
+      - "redis:host-gateway" # Map redis hostname to host
+      - "host.docker.internal:host-gateway" # Ensure host connectivity
+
+    # === HEALTH CHECK ===
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:7860/health" ]
+      interval: 30s # Kiểm tra mỗi 30 giây
+      timeout: 10s # Timeout sau 10 giây
+      retries: 3 # Thử lại 3 lần
+      start_period: 60s # Đợi 60 giây trước khi bắt đầu check
+
+    # === RESOURCE LIMITS ===
+    deploy:
+      resources:
+        limits:
+          cpus: '4' # Tối đa 4 CPU cores
+          memory: 6G # Tối đa 6GB RAM
+        reservations:
+          cpus: '2' # Đảm bảo ít nhất 1 CPU
+          memory: 4G # Đảm bảo ít nhất 2GB RAM
+
+    # === LABELS FOR MONITORING ===
+    labels:
+      - "traefik.enable=true" # Enable Traefik routing
+      - "service.group=ai" # Nhóm service AI
+      - "service.type=frontend" # Loại service frontend
+      - "backup.enable=true" # Enable backup cho workflows
+
+    # === PROFILE ===
+    profiles: [ "langflow" ] # Chỉ chạy khi sử dụng profile ai hoặc langflow
+
+  # GitLab CE - Hệ thống quản lý mã nguồn và CI/CD (Continuous Integration/Continuous Deployment)
+  gitlab:
+    <<: *default-opts
+    image: gitlab/gitlab-ce:16.11.10-ce.0
+    container_name: gitlab
+    hostname: gitlab # Tên máy chủ cho nhận diện nội bộ
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        # URL bên ngoài - Rất quan trọng!
+        external_url 'http://localhost:8088'; # URL để truy cập GitLab
+
+        # Tắt GitLab Kubernetes Agent Server (KAS) để tránh lỗi 404 nếu không sử dụng
+        gitlab_kas['enable'] = false;
+
+        # Cấu hình tài khoản root (quản trị viên)
+        gitlab_rails['initial_root_password'] = "nextflow@2025"
+
+        # Cấu hình PostgreSQL (kết nối đến dịch vụ 'postgres')
+        postgresql['enable'] = false; # Tắt PostgreSQL tích hợp
+        gitlab_rails['db_adapter'] = 'postgresql'; # Loại cơ sở dữ liệu
+        gitlab_rails['db_encoding'] = 'utf8'; # Mã hóa ký tự
+        gitlab_rails['db_host'] = 'postgres'; # Tên dịch vụ PostgreSQL
+        gitlab_rails['db_port'] = 5432; # Cổng PostgreSQL
+        gitlab_rails['db_username'] = '${POSTGRES_USER_GITLAB:-nextflow}'; # Tài khoản kết nối DB
+        gitlab_rails['db_password'] = '${POSTGRES_PASSWORD_GITLAB:-nextflow@2025}'; # Mật khẩu kết nối DB
+        gitlab_rails['db_database'] = 'gitlabhq_production'; # Tên cơ sở dữ liệu GitLab
+
+        # Cấu hình Redis (kết nối đến dịch vụ 'redis')
+        redis['enable'] = false; # Tắt Redis tích hợp
+        gitlab_rails['redis_host'] = 'redis'; # Tên dịch vụ Redis
+        gitlab_rails['redis_port'] = 6379; # Cổng Redis
+        gitlab_rails['redis_password'] = '${REDIS_PASSWORD:-nextflow@2025}'; # Mật khẩu Redis
+
+        # Cấu hình cổng SSH
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222; # Phải khớp với port mapping
+
+        # Múi giờ
+        gitlab_rails['time_zone'] = 'Asia/Ho_Chi_Minh'
+
+        # Container Registry (Kho lưu trữ Docker images)
+        registry_external_url 'http://localhost:5050'; # URL truy cập Registry
+        gitlab_rails['registry_enabled'] = true; # Bật Container Registry
+        # Nginx cho Registry (GitLab sẽ tự cấu hình)
+        registry_nginx['listen_port'] = 5050; # Cổng Nginx của Registry
+
+        # Tắt Prometheus monitoring tích hợp (nếu sử dụng hệ thống giám sát riêng)
+        prometheus_monitoring['enable'] = false;
+
+        # Cấu hình Email (QUAN TRỌNG - Thay thế bằng thông tin SMTP)
+        gitlab_rails['smtp_enable'] = false; # Bật SMTP
+        gitlab_rails['smtp_address'] = "smtp.gmail.com"; # Máy chủ SMTP
+        gitlab_rails['smtp_port'] = 587; # Cổng SMTP
+        gitlab_rails['smtp_user_name'] = "your_email@gmail.com"; # Tài khoản email
+        gitlab_rails['smtp_password'] = "your_app_password"; # Mật khẩu ứng dụng
+        gitlab_rails['smtp_domain'] = "smtp.gmail.com"; # Domain SMTP
+        gitlab_rails['smtp_authentication'] = "login"; # Phương thức xác thực
+        gitlab_rails['smtp_enable_starttls_auto'] = true; # Bật STARTTLS tự động
+        gitlab_rails['smtp_tls'] = false; # TLS trực tiếp (port 465)
+        gitlab_rails['gitlab_email_from'] = 'your_email@gmail.com'; # Email gửi
+        gitlab_rails['gitlab_email_display_name'] = 'GitLab NextFlow'; # Tên hiển thị
+        gitlab_rails['gitlab_email_reply_to'] = 'noreply@example.com'; # Email không trả lời
+
+        # Cấu hình sao lưu
+        gitlab_rails['backup_path'] = "/var/opt/gitlab/backups"; # Đường dẫn sao lưu
+        gitlab_rails['backup_keep_time'] = 604800; # Thời gian giữ sao lưu (7 ngày)
+
+        # Tối ưu hiệu năng (điều chỉnh theo tài nguyên máy chủ)
+        puma['worker_processes'] = 4; # Số worker của Puma (máy chủ web)
+        # sidekiq['concurrency'] = 10; # Số luồng xử lý tác vụ nền
+        # Chia nhỏ Sidekiq queues (nâng cao):
+        # sidekiq['queue_groups'] = [
+        #   "*" # Xử lý tất cả các hàng đợi
+        # ];
+        # sidekiq['min_concurrency'] = 2; # Số luồng tối thiểu
+        # sidekiq['max_concurrency'] = 10; # Số luồng tối đa
+
+        # Cài đặt bảo mật và tính năng mặc định
+        gitlab_rails['gitlab_default_projects_features_issues'] = true; # Bật Issues
+        gitlab_rails['gitlab_default_projects_features_merge_requests'] = true; # Bật Merge Requests
+        gitlab_rails['gitlab_default_projects_features_wiki'] = true; # Bật Wiki
+        gitlab_rails['gitlab_default_projects_features_snippets'] = true; # Bật Snippets
+        gitlab_rails['gitlab_default_projects_features_builds'] = true; # Bật CI/CD
+        gitlab_rails['gitlab_default_projects_features_container_registry'] = true; # Bật Container Registry
+    ports:
+      - "8443:443"
+      - "8088:80" # HTTP Web (Port host 8088 bạn đã dùng)
+      - "2222:22" # SSH (Port host 2222 bạn đã dùng)
+      - "5050:5050" # Container Registry (Port host 5050 bạn đã dùng)
+    volumes:
+      # Sử dụng đường dẫn tương đối như trong file của bạn
+      - ./gitlab/config:/etc/gitlab
+      - ./gitlab/logs:/var/log/gitlab
+      - ./gitlab/data:/var/opt/gitlab
+      - ./gitlab/backups:/var/opt/gitlab/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "/opt/gitlab/bin/gitlab-healthcheck", "--fail", "--max-time", "10" ]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 300s # Tăng thời gian chờ GitLab khởi động hoàn toàn
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '4'
+          memory: 8G
+    profiles: [ "gitlab" ]
+
+  # ================================
+  # STALWART MAIL SERVER
+  # ================================
+  stalwart-mail:
+    image: stalwartlabs/mail-server:latest
+    container_name: stalwart-mail
+    restart: unless-stopped
+    hostname: ${MAIL_HOSTNAME:-mail.localhost}
+    environment:
+      # Cấu hình cơ bản
+      - STALWART_HOSTNAME=${MAIL_HOSTNAME:-mail.localhost}
+      - STALWART_ADMIN_USER=${MAIL_ADMIN_USER:-admin}
+      - STALWART_ADMIN_PASSWORD=${MAIL_ADMIN_PASSWORD:-changeme123}
+
+      # Cấu hình database
+      - STALWART_DB_TYPE=postgresql
+      - STALWART_DB_HOST=postgres
+      - STALWART_DB_PORT=5432
+      - STALWART_DB_NAME=${MAIL_DB_NAME:-stalwart_mail}
+      - STALWART_DB_USER=${MAIL_DB_USER:-stalwart}
+      - STALWART_DB_PASSWORD=${MAIL_DB_PASSWORD:-stalwart123}
+
+      # Cấu hình SMTP
+      - STALWART_SMTP_PORT=25
+      - STALWART_SMTP_SUBMISSION_PORT=587
+      - STALWART_SMTP_SUBMISSIONS_PORT=465
+
+      # Cấu hình IMAP/POP3
+      - STALWART_IMAP_PORT=143
+      - STALWART_IMAPS_PORT=993
+      - STALWART_POP3_PORT=110
+      - STALWART_POP3S_PORT=995
+
+      # Cấu hình bảo mật
+      - STALWART_TLS_CERT_PATH=/etc/stalwart/certs/cert.pem
+      - STALWART_TLS_KEY_PATH=/etc/stalwart/certs/key.pem
+      - STALWART_DKIM_ENABLED=true
+      - STALWART_SPF_ENABLED=true
+      - STALWART_DMARC_ENABLED=true
+
+      # Cấu hình chống spam
+      - STALWART_SPAM_FILTER_ENABLED=true
+      - STALWART_ANTIVIRUS_ENABLED=true
+
+      # Cấu hình logging
+      - STALWART_LOG_LEVEL=${MAIL_LOG_LEVEL:-info}
+      - STALWART_LOG_FORMAT=json
+    ports:
+      # SMTP Ports
+      - "${MAIL_SMTP_PORT:-25}:25" # SMTP
+      - "${MAIL_SUBMISSION_PORT:-587}:587" # SMTP Submission
+      - "${MAIL_SUBMISSIONS_PORT:-465}:465" # SMTP Submissions (SSL)
+
+      # IMAP Ports
+      - "${MAIL_IMAP_PORT:-143}:143" # IMAP
+      - "${MAIL_IMAPS_PORT:-993}:993" # IMAPS (SSL)
+
+      # POP3 Ports
+      - "${MAIL_POP3_PORT:-110}:110" # POP3
+      - "${MAIL_POP3S_PORT:-995}:995" # POP3S (SSL)
+
+      # Web Admin Interface
+      - "${MAIL_ADMIN_PORT:-8080}:8080" # Web Admin
+
+      # ManageSieve
+      - "${MAIL_SIEVE_PORT:-4190}:4190" # ManageSieve
+    volumes:
+      # Cấu hình
+      - stalwart_config:/etc/stalwart
+      - stalwart_data:/var/lib/stalwart
+      - stalwart_logs:/var/log/stalwart
+
+      # SSL Certificates (nếu có)
+      - ./stalwart/certs:/etc/stalwart/certs:ro
+
+      # Custom configuration
+      - ./stalwart/config:/etc/stalwart/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "stalwart-mail", "--config", "/etc/stalwart/stalwart-mail.toml", "--test" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    networks:
+      - nextflow-network
+    profiles: [ "mail" ]
