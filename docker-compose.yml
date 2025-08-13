@@ -1137,123 +1137,153 @@ services:
     # === PROFILE ===
     profiles: [ "langflow" ] # Chỉ chạy khi sử dụng profile ai hoặc langflow
 
-  # GitLab CE - Hệ thống quản lý mã nguồn và CI/CD (Continuous Integration/Continuous Deployment)
+  # ============================================================================
+  # GITLAB CE - HỆ THỐNG QUẢN LÝ MÃ NGUỒN VÀ CI/CD (CUSTOM BUILD)
+  # ============================================================================
+  # GitLab Community Edition tùy chỉnh cho NextFlow CRM-AI
+  # Build từ Dockerfile với scripts và cấu hình tối ưu
   gitlab:
     <<: *default-opts
-    image: gitlab/gitlab-ce:16.11.10-ce.0
+    build:
+      context: ./gitlab/docker
+      dockerfile: Dockerfile
+      args:
+        - GITLAB_VERSION=16.11.10-ce.0
+        - GITLAB_TIMEZONE=Asia/Ho_Chi_Minh
+    image: nextflow/gitlab-ce:latest
     container_name: gitlab
-    hostname: gitlab # Tên máy chủ cho nhận diện nội bộ
+    hostname: gitlab
     restart: unless-stopped
-    env_file:
-      - .env
+
+    # === CẤU HÌNH ENVIRONMENT ===
     environment:
+      # Cấu hình GitLab Omnibus
       GITLAB_OMNIBUS_CONFIG: |
-        # URL bên ngoài - Rất quan trọng!
-        external_url 'http://localhost:8088'; # URL để truy cập GitLab
-
-        # Tắt GitLab Kubernetes Agent Server (KAS) để tránh lỗi 404 nếu không sử dụng
+        # === CẤU HÌNH CƠ BẢN ===
+        external_url '${GITLAB_EXTERNAL_URL:-http://localhost:8088}';
         gitlab_kas['enable'] = false;
+        gitlab_rails['initial_root_password'] = "${GITLAB_ROOT_PASSWORD:-nextflow@2025}";
+        gitlab_rails['time_zone'] = 'Asia/Ho_Chi_Minh';
 
-        # Cấu hình tài khoản root (quản trị viên)
-        gitlab_rails['initial_root_password'] = "nextflow@2025"
+        # === CẤU HÌNH CƠ SỞ DỮ LIỆU ===
+        postgresql['enable'] = false;
+        gitlab_rails['db_adapter'] = 'postgresql';
+        gitlab_rails['db_encoding'] = 'utf8';
+        gitlab_rails['db_host'] = 'postgres';
+        gitlab_rails['db_port'] = 5432;
+        gitlab_rails['db_username'] = '${POSTGRES_USER:-nextflow}';
+        gitlab_rails['db_password'] = '${POSTGRES_PASSWORD:-nextflow@2025}';
+        gitlab_rails['db_database'] = 'gitlabhq_production';
 
-        # Cấu hình PostgreSQL (kết nối đến dịch vụ 'postgres')
-        postgresql['enable'] = false; # Tắt PostgreSQL tích hợp
-        gitlab_rails['db_adapter'] = 'postgresql'; # Loại cơ sở dữ liệu
-        gitlab_rails['db_encoding'] = 'utf8'; # Mã hóa ký tự
-        gitlab_rails['db_host'] = 'postgres'; # Tên dịch vụ PostgreSQL
-        gitlab_rails['db_port'] = 5432; # Cổng PostgreSQL
-        gitlab_rails['db_username'] = '${POSTGRES_USER_GITLAB:-nextflow}'; # Tài khoản kết nối DB
-        gitlab_rails['db_password'] = '${POSTGRES_PASSWORD_GITLAB:-nextflow@2025}'; # Mật khẩu kết nối DB
-        gitlab_rails['db_database'] = 'gitlabhq_production'; # Tên cơ sở dữ liệu GitLab
+        # === CẤU HÌNH REDIS ===
+        redis['enable'] = false;
+        gitlab_rails['redis_host'] = 'redis';
+        gitlab_rails['redis_port'] = 6379;
+        gitlab_rails['redis_password'] = '${REDIS_PASSWORD:-nextflow@2025}';
 
-        # Cấu hình Redis (kết nối đến dịch vụ 'redis')
-        redis['enable'] = false; # Tắt Redis tích hợp
-        gitlab_rails['redis_host'] = 'redis'; # Tên dịch vụ Redis
-        gitlab_rails['redis_port'] = 6379; # Cổng Redis
-        gitlab_rails['redis_password'] = '${REDIS_PASSWORD:-nextflow@2025}'; # Mật khẩu Redis
+        # === CẤU HÌNH SSH ===
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222;
 
-        # Cấu hình cổng SSH
-        gitlab_rails['gitlab_shell_ssh_port'] = 2222; # Phải khớp với port mapping
+        # === CẤU HÌNH CONTAINER REGISTRY ===
+        registry_external_url '${GITLAB_REGISTRY_URL:-http://localhost:5050}';
+        gitlab_rails['registry_enabled'] = true;
+        registry_nginx['listen_port'] = 5050;
 
-        # Múi giờ
-        gitlab_rails['time_zone'] = 'Asia/Ho_Chi_Minh'
+        # === CẤU HÌNH EMAIL (STALWART MAIL) ===
+        gitlab_rails['smtp_enable'] = ${GITLAB_SMTP_ENABLE:-true};
+        gitlab_rails['smtp_address'] = '${MAIL_SMTP_HOST:-stalwart-mail}';
+        gitlab_rails['smtp_port'] = ${MAIL_SMTP_PORT:-587};
+        gitlab_rails['smtp_user_name'] = '${MAIL_SMTP_USER:-gitlab@nextflow.local}';
+        gitlab_rails['smtp_password'] = '${MAIL_SMTP_PASSWORD:-changeme123}';
+        gitlab_rails['smtp_domain'] = '${MAIL_DOMAIN:-nextflow.local}';
+        gitlab_rails['smtp_authentication'] = 'login';
+        gitlab_rails['smtp_enable_starttls_auto'] = true;
+        gitlab_rails['smtp_tls'] = false;
+        gitlab_rails['gitlab_email_from'] = '${MAIL_FROM:-gitlab@nextflow.local}';
+        gitlab_rails['gitlab_email_display_name'] = 'GitLab NextFlow CRM-AI';
+        gitlab_rails['gitlab_email_reply_to'] = '${MAIL_REPLY_TO:-noreply@nextflow.local}';
 
-        # Container Registry (Kho lưu trữ Docker images)
-        registry_external_url 'http://localhost:5050'; # URL truy cập Registry
-        gitlab_rails['registry_enabled'] = true; # Bật Container Registry
-        # Nginx cho Registry (GitLab sẽ tự cấu hình)
-        registry_nginx['listen_port'] = 5050; # Cổng Nginx của Registry
+        # === CẤU HÌNH BACKUP ===
+        gitlab_rails['backup_path'] = "/var/opt/gitlab/backups";
+        gitlab_rails['backup_keep_time'] = ${GITLAB_BACKUP_KEEP_TIME:-604800};
 
-        # Tắt Prometheus monitoring tích hợp (nếu sử dụng hệ thống giám sát riêng)
+        # === CẤU HÌNH HIỆU SUẤT ===
+        puma['worker_processes'] = ${GITLAB_PUMA_WORKERS:-4};
+        puma['min_threads'] = ${GITLAB_PUMA_MIN_THREADS:-4};
+        puma['max_threads'] = ${GITLAB_PUMA_MAX_THREADS:-16};
+        sidekiq['max_concurrency'] = ${GITLAB_SIDEKIQ_CONCURRENCY:-10};
+
+        # === TẮT MONITORING TÍCH HỢP ===
         prometheus_monitoring['enable'] = false;
 
-        # Cấu hình Email (QUAN TRỌNG - Thay thế bằng thông tin SMTP)
-        gitlab_rails['smtp_enable'] = false; # Bật SMTP
-        gitlab_rails['smtp_address'] = "smtp.gmail.com"; # Máy chủ SMTP
-        gitlab_rails['smtp_port'] = 587; # Cổng SMTP
-        gitlab_rails['smtp_user_name'] = "your_email@gmail.com"; # Tài khoản email
-        gitlab_rails['smtp_password'] = "your_app_password"; # Mật khẩu ứng dụng
-        gitlab_rails['smtp_domain'] = "smtp.gmail.com"; # Domain SMTP
-        gitlab_rails['smtp_authentication'] = "login"; # Phương thức xác thực
-        gitlab_rails['smtp_enable_starttls_auto'] = true; # Bật STARTTLS tự động
-        gitlab_rails['smtp_tls'] = false; # TLS trực tiếp (port 465)
-        gitlab_rails['gitlab_email_from'] = 'your_email@gmail.com'; # Email gửi
-        gitlab_rails['gitlab_email_display_name'] = 'GitLab NextFlow'; # Tên hiển thị
-        gitlab_rails['gitlab_email_reply_to'] = 'noreply@example.com'; # Email không trả lời
+        # === CẤU HÌNH TÍNH NĂNG MẶC ĐỊNH ===
+        gitlab_rails['gitlab_default_projects_features_issues'] = true;
+        gitlab_rails['gitlab_default_projects_features_merge_requests'] = true;
+        gitlab_rails['gitlab_default_projects_features_wiki'] = true;
+        gitlab_rails['gitlab_default_projects_features_snippets'] = true;
+        gitlab_rails['gitlab_default_projects_features_builds'] = true;
+        gitlab_rails['gitlab_default_projects_features_container_registry'] = true;
 
-        # Cấu hình sao lưu
-        gitlab_rails['backup_path'] = "/var/opt/gitlab/backups"; # Đường dẫn sao lưu
-        gitlab_rails['backup_keep_time'] = 604800; # Thời gian giữ sao lưu (7 ngày)
+        # === CẤU HÌNH CI/CD ===
+        gitlab_rails['auto_devops_enabled'] = true;
+        gitlab_rails['shared_runners_enabled'] = true;
 
-        # Tối ưu hiệu năng (điều chỉnh theo tài nguyên máy chủ)
-        puma['worker_processes'] = 4; # Số worker của Puma (máy chủ web)
-        # sidekiq['concurrency'] = 10; # Số luồng xử lý tác vụ nền
-        # Chia nhỏ Sidekiq queues (nâng cao):
-        # sidekiq['queue_groups'] = [
-        #   "*" # Xử lý tất cả các hàng đợi
-        # ];
-        # sidekiq['min_concurrency'] = 2; # Số luồng tối thiểu
-        # sidekiq['max_concurrency'] = 10; # Số luồng tối đa
+        # === CẤU HÌNH BẢO MẬT ===
+        gitlab_rails['signup_enabled'] = ${GITLAB_SIGNUP_ENABLED:-true};
+        gitlab_rails['require_admin_approval_after_user_signup'] = false;
+        gitlab_rails['send_user_confirmation_email'] = false;
 
-        # Cài đặt bảo mật và tính năng mặc định
-        gitlab_rails['gitlab_default_projects_features_issues'] = true; # Bật Issues
-        gitlab_rails['gitlab_default_projects_features_merge_requests'] = true; # Bật Merge Requests
-        gitlab_rails['gitlab_default_projects_features_wiki'] = true; # Bật Wiki
-        gitlab_rails['gitlab_default_projects_features_snippets'] = true; # Bật Snippets
-        gitlab_rails['gitlab_default_projects_features_builds'] = true; # Bật CI/CD
-        gitlab_rails['gitlab_default_projects_features_container_registry'] = true; # Bật Container Registry
+    # === PORT MAPPING ===
     ports:
-      - "8443:443"
-      - "8088:80" # HTTP Web (Port host 8088 bạn đã dùng)
-      - "2222:22" # SSH (Port host 2222 bạn đã dùng)
-      - "5050:5050" # Container Registry (Port host 5050 bạn đã dùng)
+      - "${GITLAB_HTTP_PORT:-8088}:80"        # HTTP Web interface
+      - "${GITLAB_HTTPS_PORT:-8443}:443"      # HTTPS Web interface
+      - "${GITLAB_SSH_PORT:-2222}:22"         # SSH Git access
+      - "${GITLAB_REGISTRY_PORT:-5050}:5050"  # Container Registry
+
+    # === VOLUME MOUNTS ===
     volumes:
-      # Sử dụng đường dẫn tương đối như trong file của bạn
+      # Persistent data storage
       - ./gitlab/config:/etc/gitlab
       - ./gitlab/logs:/var/log/gitlab
       - ./gitlab/data:/var/opt/gitlab
       - ./gitlab/backups:/var/opt/gitlab/backups
+
+      # Scripts tùy chỉnh
+      - ./scripts:/opt/nextflow/scripts:ro
+
+    # === DEPENDENCIES ===
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+    # === HEALTH CHECK ===
     healthcheck:
-      test: [ "CMD", "/opt/gitlab/bin/gitlab-healthcheck", "--fail", "--max-time", "10" ]
+      test: ["CMD", "/opt/gitlab/bin/gitlab-healthcheck", "--fail", "--max-time", "10"]
       interval: 60s
       timeout: 30s
       retries: 5
-      start_period: 300s # Tăng thời gian chờ GitLab khởi động hoàn toàn
+      start_period: 300s  # GitLab cần thời gian khởi động lâu
+    # === RESOURCE LIMITS ===
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 8G
+          cpus: '${GITLAB_CPU_LIMIT:-4}'
+          memory: ${GITLAB_MEMORY_LIMIT:-8G}
         reservations:
-          cpus: '4'
-          memory: 8G
-    profiles: [ "gitlab" ]
+          cpus: '${GITLAB_CPU_RESERVE:-2}'
+          memory: ${GITLAB_MEMORY_RESERVE:-4G}
+
+    # === LABELS ===
+    labels:
+      - "service.group=devops"
+      - "service.type=git"
+      - "backup.enable=true"
+      - "backup.schedule=daily"
+
+    # === PROFILE ===
+    profiles: ["gitlab"]
 
   # ================================
   # STALWART MAIL SERVER
