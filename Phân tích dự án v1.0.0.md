@@ -43,24 +43,6 @@
     k6: Load testing cho hệ thống
     SonarQube: Code quality cho backend, frontend, AI
 
-⚠️ THÀNH PHẦN CẦN ĐÁNH GIÁ LẠI
-
-1. Content Management (⭐⭐)
-    wordpress
-    mariadb
-    Ưu điểm: Có thể dùng cho landing page, blog marketing
-    Nhược điểm: Thêm complexity, resource overhead
-    Khuyến nghị: Thay bằng Next.js static site hoặc headless CMS
-
-2. GitLab (⭐⭐)
-    Ưu điểm: Full DevOps platform
-    Nhược điểm: Rất nặng (4 CPU, 8GB RAM), phức tạp cho startup
-    Khuyến nghị: Dùng GitHub + GitHub Actions (miễn phí cho startup)
-
-1. Mail Server (❌)
-    Quá phức tạp cho startup
-    Khuyến nghị: Dùng SendGrid, Mailgun, hoặc AWS SES
-
 🏗️ PHÂN TÍCH KIẾN TRÚC VÀ DESIGN PATTERN
 
 1. ĐÁNH GIÁ KIẾN TRÚC MICROSERVICES HIỆN TẠI
@@ -114,21 +96,18 @@
         Email	Stalwart Mail	Resend	Managed service, cost-effective
         Deployment	GitLab	Railway + GitHub Actions	Rẻ hơn, dễ setup
         Mobile	Chưa có	React Native Expo	Cross-platform, shared codebase
-    🗺️ ROADMAP 6 THÁNG
-        Tháng 1-2: Foundation - NestJS backend, database design, basic APIs
-        Tháng 3: Frontend - Next.js dashboard, mobile app
-        Tháng 4: AI Integration - Chatbot, automation workflows
-        Tháng 5: Integrations - Marketplace, social media, payments
-        Tháng 6: Production - Performance, security, deployment
+
     💰 CHI PHÍ DỰ KIẾN
         MVP (3 tháng đầu): $47/tháng
         Production (3 tháng sau): $190/tháng
         Tổng năm đầu: ~$1,400 (rất hợp lý cho startup)
+
     🎯 BƯỚC TIẾP THEO
         Ngay lập tức: Cleanup Docker Compose, loại bỏ services không cần thiết
         Tuần tới: Setup NestJS backend với multi-tenant architecture
         Tháng tới: Implement core CRM APIs (Customer, Product, Order)
         Theo roadmap: Phát triển từng phase một cách có hệ thống
+
     🔥 LỢI THỂ CẠNH TRANH
         Với stack công nghệ này, bạn sẽ có:
 
