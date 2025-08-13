@@ -1,96 +1,110 @@
-# GitLab Custom Build cho NextFlow CRM-AI
+# Hướng dẫn cài đặt GitLab cho NextFlow CRM-AI
 
-## 🎯 Tổng quan
+## 🎯 Tổng quan hệ thống
 
-GitLab CE **Custom Build** được cấu hình trong `docker-compose.yml` với:
-- **Version cố định:** 16.11.10-ce.0 (đảm bảo tính ổn định)
-- **Cấu hình tập trung:** Tất cả biến được quản lý từ `.env`
-- **Custom Dockerfile** với NextFlow scripts
-- **PostgreSQL external** (shared database)
-- **Redis external** (shared cache)
-- **Stalwart Mail integration**
-- **Container Registry**
-- **Backup tự động**
-- **Vietnamese timezone**
-- **Optimized configuration**
+GitLab CE (Community Edition - Phiên bản miễn phí) được tùy chỉnh cho dự án NextFlow CRM-AI với các tính năng:
+
+- **Phiên bản cố định:** 16.11.10-ce.0 (đảm bảo hệ thống ổn định, không bị lỗi do cập nhật tự động)
+- **Quản lý cấu hình tập trung:** Tất cả thông số được lưu trong file `.env` để dễ thay đổi
+- **Dockerfile tùy chỉnh:** Có thêm các script riêng cho NextFlow
+- **Cơ sở dữ liệu PostgreSQL riêng biệt:** Không dùng database tích hợp sẵn mà dùng chung với hệ thống
+- **Redis cache riêng biệt:** Dùng chung Redis server để tăng hiệu suất
+- **Tích hợp email Stalwart:** Gửi email thông báo qua mail server riêng
+- **Container Registry:** Lưu trữ Docker images của dự án
+- **Sao lưu tự động:** Tự động backup dữ liệu định kỳ
+- **Múi giờ Việt Nam:** Hiển thị thời gian theo giờ Việt Nam
+- **Cấu hình tối ưu:** Điều chỉnh hiệu suất phù hợp với server
 
 ## 🚀 Quy trình triển khai
 
-lệnh xóa db :
-docker exec postgres psql -U nextflow -c "DROP DATABASE IF EXISTS nextflow_gitlab;"
 ### Script quản lý tập trung: `gitlab-manager.sh`
 
+Script này giúp quản lý toàn bộ GitLab một cách đơn giản:
+
 ```bash
-# Build GitLab custom image
+# Xây dựng GitLab image tùy chỉnh (chứa các script riêng của NextFlow)
 ./scripts/gitlab-manager.sh build
 
-# Cài đặt GitLab (tự động build nếu cần)
+# Cài đặt GitLab hoàn chỉnh (tự động build image nếu chưa có)
 ./scripts/gitlab-manager.sh install
 
-# Cập nhật GitLab
-./scripts/gitlab-manager.sh update
+# Kiểm tra trạng thái tổng thể của GitLab
+./scripts/gitlab-manager.sh status
 
-# Backup GitLab
+# Tạo tài khoản root (quản trị viên) khi chưa có
+./scripts/gitlab-manager.sh create-root
+
+# Sao lưu dữ liệu GitLab
 ./scripts/gitlab-manager.sh backup
 
-# Restore GitLab
+# Khôi phục dữ liệu từ bản sao lưu
 ./scripts/gitlab-manager.sh restore
 
-# Xem hướng dẫn
+# Xem tất cả lệnh có thể dùng
 ./scripts/gitlab-manager.sh help
+```
+
+### Lệnh khẩn cấp khi cần reset:
+
+```bash
+# Xóa database GitLab (cẩn thận - mất hết dữ liệu!)
+docker exec postgres psql -U nextflow -c "DROP DATABASE IF EXISTS nextflow_gitlab;"
+
+# Reset toàn bộ GitLab về trạng thái ban đầu
+./scripts/gitlab-manager.sh reset-all
 ```
 
 ## 📋 Quy trình cài đặt đầy đủ
 
 ### 1. Cấu hình .env (đã có sẵn)
 
-## 📋 Cấu hình tập trung từ .env
+## 📋 Cấu hình hệ thống từ file .env
 
-Tất cả biến GitLab được quản lý tập trung trong file `.env`:
+Tất cả thông số GitLab được quản lý tập trung trong file `.env` để dễ thay đổi:
 
-### Version & Database:
+### Phiên bản và Cơ sở dữ liệu:
 ```bash
-GITLAB_VERSION=16.11.10-ce.0
-GITLAB_DATABASE=nextflow_gitlab
+GITLAB_VERSION=16.11.10-ce.0        # Phiên bản GitLab cố định (không tự động cập nhật)
+GITLAB_DATABASE=nextflow_gitlab      # Tên database PostgreSQL cho GitLab
 ```
 
-### URLs & Access:
+### Địa chỉ truy cập và Tài khoản:
 ```bash
-GITLAB_EXTERNAL_URL=http://localhost:8088
-GITLAB_REGISTRY_URL=http://localhost:5050
-GITLAB_ROOT_USERNAME=root
-GITLAB_ROOT_PASSWORD=Nex!tFlow@2025!
-GITLAB_ROOT_EMAIL=nextflow.vn@gmail.com
+GITLAB_EXTERNAL_URL=http://localhost:8088     # Địa chỉ web để truy cập GitLab
+GITLAB_REGISTRY_URL=http://localhost:5050     # Địa chỉ Docker Registry (lưu trữ images)
+GITLAB_ROOT_USERNAME=root                     # Tên tài khoản quản trị viên
+GITLAB_ROOT_PASSWORD=Nex!tFlow@2025!          # Mật khẩu tài khoản quản trị viên
+GITLAB_ROOT_EMAIL=nextflow.vn@gmail.com       # Email tài khoản quản trị viên
 ```
 
-### Ports:
+### Cổng kết nối (Ports):
 ```bash
-GITLAB_HTTP_PORT=8088
-GITLAB_HTTPS_PORT=8443
-GITLAB_SSH_PORT=2222
-GITLAB_REGISTRY_PORT=5050
+GITLAB_HTTP_PORT=8088      # Cổng web HTTP (truy cập qua trình duyệt)
+GITLAB_HTTPS_PORT=8443     # Cổng web HTTPS (bảo mật SSL)
+GITLAB_SSH_PORT=2222       # Cổng SSH (clone/push code qua SSH)
+GITLAB_REGISTRY_PORT=5050  # Cổng Docker Registry
 ```
 
-### Performance:
+### Hiệu suất xử lý (Performance):
 ```bash
-GITLAB_PUMA_WORKERS=4
-GITLAB_PUMA_MIN_THREADS=4
-GITLAB_PUMA_MAX_THREADS=16
-GITLAB_SIDEKIQ_CONCURRENCY=10
+GITLAB_PUMA_WORKERS=4          # Số worker xử lý web (càng nhiều càng nhanh)
+GITLAB_PUMA_MIN_THREADS=4      # Số thread tối thiểu mỗi worker
+GITLAB_PUMA_MAX_THREADS=16     # Số thread tối đa mỗi worker
+GITLAB_SIDEKIQ_CONCURRENCY=10  # Số job xử lý đồng thời (background tasks)
 ```
 
-### Resources:
+### Tài nguyên hệ thống (Resources):
 ```bash
-GITLAB_CPU_LIMIT=4
-GITLAB_MEMORY_LIMIT=8G
-GITLAB_CPU_RESERVE=2
-GITLAB_MEMORY_RESERVE=4G
+GITLAB_CPU_LIMIT=4         # Giới hạn CPU tối đa (4 cores)
+GITLAB_MEMORY_LIMIT=8G     # Giới hạn RAM tối đa (8GB)
+GITLAB_CPU_RESERVE=2       # CPU dành riêng tối thiểu (2 cores)
+GITLAB_MEMORY_RESERVE=4G   # RAM dành riêng tối thiểu (4GB)
 ```
 
-### Features:
+### Tính năng hệ thống (Features):
 ```bash
-GITLAB_SIGNUP_ENABLED=true
-GITLAB_BACKUP_KEEP_TIME=604800
+GITLAB_SIGNUP_ENABLED=true      # Cho phép đăng ký tài khoản mới (true/false)
+GITLAB_BACKUP_KEEP_TIME=604800  # Thời gian lưu backup (604800 = 7 ngày)
 ```
 
 ## ✅ Lợi ích cấu hình tập trung

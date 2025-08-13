@@ -26,6 +26,7 @@ COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 ENV_FILE="$PROJECT_DIR/.env"
 GITLAB_CONTAINER="gitlab"
 BACKUP_DIR="$PROJECT_DIR/gitlab/backups"
+GITLAB_SCRIPTS_DIR="$PROJECT_DIR/gitlab/scripts"
 
 # Load environment variables
 if [ -f "$ENV_FILE" ]; then
@@ -581,21 +582,28 @@ check_gitlab_status() {
         log_error "  ✗ Không kết nối được database"
     fi
 
-    # 3. Kiểm tra số lượng users
-    log_info "3. Users trong database:"
-    USER_COUNT=$(docker exec gitlab gitlab-rails runner "puts User.count" 2>/dev/null || echo "0")
-    if [ "$USER_COUNT" -gt 0 ]; then
-        log_success "  ✓ Có $USER_COUNT users"
-
-        # Kiểm tra root user
-        ROOT_EXISTS=$(docker exec gitlab gitlab-rails runner "puts User.find_by(username: 'root') ? 'true' : 'false'" 2>/dev/null || echo "false")
-        if [ "$ROOT_EXISTS" = "true" ]; then
-            log_success "  ✓ Root user đã tồn tại"
-        else
-            log_warning "  ⚠ Root user chưa tồn tại"
-        fi
+    # 3. Chạy GitLab status script
+    log_info "3. GitLab Status Report:"
+    if [ -f "$GITLAB_SCRIPTS_DIR/gitlab_status.rb" ]; then
+        docker cp "$GITLAB_SCRIPTS_DIR/gitlab_status.rb" gitlab:/tmp/
+        docker exec gitlab gitlab-rails runner /tmp/gitlab_status.rb 2>/dev/null || log_warning "  ⚠ Không thể chạy status script"
+        docker exec gitlab rm -f /tmp/gitlab_status.rb 2>/dev/null
     else
-        log_warning "  ⚠ Chưa có users nào (cần tạo root user)"
+        # Fallback to simple check
+        USER_COUNT=$(docker exec gitlab gitlab-rails runner "puts User.count" 2>/dev/null || echo "0")
+        if [ "$USER_COUNT" -gt 0 ]; then
+            log_success "  ✓ Có $USER_COUNT users"
+
+            # Kiểm tra root user
+            ROOT_EXISTS=$(docker exec gitlab gitlab-rails runner "puts User.find_by(username: 'root') ? 'true' : 'false'" 2>/dev/null || echo "false")
+            if [ "$ROOT_EXISTS" = "true" ]; then
+                log_success "  ✓ Root user đã tồn tại"
+            else
+                log_warning "  ⚠ Root user chưa tồn tại"
+            fi
+        else
+            log_warning "  ⚠ Chưa có users nào (cần tạo root user)"
+        fi
     fi
 
     # 4. Kiểm tra web access
@@ -833,35 +841,45 @@ create_root_user() {
         fi
     fi
 
-    log_info "Tạo root user bằng GitLab seed data..."
+    log_info "Tạo root user..."
     log_info "Sử dụng email: $ROOT_EMAIL"
 
-    # Sử dụng db:seed_fu thay vì gitlab:setup (hiệu quả hơn)
-    if docker exec gitlab gitlab-rake db:seed_fu GITLAB_ROOT_PASSWORD="$ROOT_PASSWORD" GITLAB_ROOT_EMAIL="$ROOT_EMAIL"; then
-        log_success "Seed data hoàn thành!"
-
-        # Kiểm tra kết quả
-        log_info "Kiểm tra root user đã được tạo..."
-        if docker exec gitlab gitlab-rails runner "
-            user = User.find_by(username: 'root')
-            if user
-                puts 'Root user đã được tạo thành công:'
-                puts \"Username: #{user.username}\"
-                puts \"Email: #{user.email}\"
-                puts \"Admin: #{user.admin}\"
-            else
-                puts 'Lỗi: Root user chưa được tạo'
-                exit 1
-            end
-        " 2>/dev/null; then
+    # Thử sử dụng script Ruby trước
+    if [ -f "$GITLAB_SCRIPTS_DIR/create_root_user.rb" ]; then
+        log_info "Sử dụng script Ruby để tạo root user..."
+        docker cp "$GITLAB_SCRIPTS_DIR/create_root_user.rb" gitlab:/tmp/
+        if docker exec gitlab bash -c "GITLAB_ROOT_PASSWORD='$ROOT_PASSWORD' GITLAB_ROOT_EMAIL='$ROOT_EMAIL' gitlab-rails runner /tmp/create_root_user.rb"; then
+            docker exec gitlab rm -f /tmp/create_root_user.rb 2>/dev/null
             log_success "Root user đã được tạo thành công!"
         else
-            log_error "Không thể xác minh root user"
-            return 1
+            docker exec gitlab rm -f /tmp/create_root_user.rb 2>/dev/null
+            log_warning "Script Ruby thất bại, thử seed data..."
+
+            # Fallback to seed_fu
+            if docker exec gitlab gitlab-rake db:seed_fu GITLAB_ROOT_PASSWORD="$ROOT_PASSWORD" GITLAB_ROOT_EMAIL="$ROOT_EMAIL"; then
+                log_success "Seed data hoàn thành!"
+            else
+                log_error "Cả hai phương pháp đều thất bại"
+                return 1
+            fi
         fi
     else
-        log_error "Lỗi khi chạy seed data"
-        return 1
+        # Sử dụng db:seed_fu nếu không có script
+        log_info "Sử dụng GitLab seed data..."
+        if docker exec gitlab gitlab-rake db:seed_fu GITLAB_ROOT_PASSWORD="$ROOT_PASSWORD" GITLAB_ROOT_EMAIL="$ROOT_EMAIL"; then
+            log_success "Seed data hoàn thành!"
+        else
+            log_error "Lỗi khi chạy seed data"
+            return 1
+        fi
+    fi
+
+    # Kiểm tra kết quả bằng script check
+    log_info "Kiểm tra root user đã được tạo..."
+    if [ -f "$GITLAB_SCRIPTS_DIR/check_root_user.rb" ]; then
+        docker cp "$GITLAB_SCRIPTS_DIR/check_root_user.rb" gitlab:/tmp/
+        docker exec gitlab gitlab-rails runner /tmp/check_root_user.rb
+        docker exec gitlab rm -f /tmp/check_root_user.rb 2>/dev/null
     fi
 
     echo ""
