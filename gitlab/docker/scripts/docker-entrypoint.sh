@@ -117,7 +117,7 @@ main() {
 
     log_success "🎉 GitLab NextFlow sẵn sàng khởi động!"
     log_info "📝 Truy cập: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
-    log_info "👤 Username: root | 🔑 Password: ${GITLAB_ROOT_PASSWORD:-nextflow@2025}"
+    log_info "👤 Username: root | 🔑 Password: ${GITLAB_ROOT_PASSWORD:-Nex!tFlow@2025!}"
 
     # Chuyển control cho GitLab
     exec "$@"

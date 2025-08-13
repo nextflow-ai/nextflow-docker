@@ -61,7 +61,7 @@ docker-compose -f gitlab/docker-compose.build.yml logs -f gitlab
 
 - **URL:** http://localhost:8088
 - **Username:** root
-- **Password:** nextflow@2025 (hoặc theo GITLAB_ROOT_PASSWORD trong .env)
+- **Password:** Nex!tFlow@2025! (hoặc theo GITLAB_ROOT_PASSWORD trong .env)
 
 ### 4. Cấu hình GitLab Runner (Optional)
 
@@ -82,7 +82,7 @@ Các biến môi trường quan trọng trong `.env`:
 | Biến | Mô tả | Mặc định |
 |------|-------|----------|
 | `GITLAB_EXTERNAL_URL` | URL truy cập GitLab | http://localhost:8088 |
-| `GITLAB_ROOT_PASSWORD` | Password user root | nextflow@2025 |
+| `GITLAB_ROOT_PASSWORD` | Password user root | Nex!tFlow@2025! |
 | `POSTGRES_HOST` | PostgreSQL host | postgres |
 | `REDIS_HOST` | Redis host | redis |
 | `MAIL_SMTP_HOST` | SMTP server | stalwart-mail |

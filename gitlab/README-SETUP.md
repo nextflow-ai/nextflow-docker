@@ -16,6 +16,8 @@ GitLab CE **Custom Build** được cấu hình trong `docker-compose.yml` với
 
 ## 🚀 Quy trình triển khai
 
+lệnh xóa db :
+docker exec postgres psql -U nextflow -c "DROP DATABASE IF EXISTS nextflow_gitlab;"
 ### Script quản lý tập trung: `gitlab-manager.sh`
 
 ```bash
@@ -105,6 +107,54 @@ GITLAB_BACKUP_KEEP_TIME=604800
 ./scripts/check-env-config.sh
 ```
 
+## 🔧 Troubleshooting & Fix
+
+### Script GitLab Manager (tích hợp fix):
+```bash
+# Menu tương tác
+./scripts/gitlab-manager.sh
+
+# Hoặc dùng command line:
+# Kiểm tra database
+./scripts/gitlab-manager.sh check-db
+
+# Reset root user (khi không đăng nhập được)
+./scripts/gitlab-manager.sh reset-root
+
+# Xóa database cũ và partitions không dùng
+./scripts/gitlab-manager.sh clean-db
+
+# Migrate database
+./scripts/gitlab-manager.sh migrate
+
+# Reset toàn bộ GitLab
+./scripts/gitlab-manager.sh reset-all
+```
+
+### Các trường hợp thường gặp:
+
+#### 1. Không đăng nhập được (root user chưa tạo):
+```bash
+./scripts/gitlab-manager.sh reset-root
+```
+
+#### 2. Database cũ `gitlabhq_production` vẫn tồn tại:
+```bash
+./scripts/gitlab-manager.sh clean-db
+```
+
+#### 3. Database partitions không dùng:
+- `gitlab_partitions_dynamic`
+- `gitlab_partitions_static`
+```bash
+./scripts/gitlab-manager.sh clean-db
+```
+
+#### 4. GitLab không khởi động được:
+```bash
+./scripts/gitlab-manager.sh reset-all
+```
+
 ### 2. Cài đặt GitLab
 
 ```bash
@@ -147,7 +197,7 @@ git clone ssh://git@localhost:2222/group/project.git
 ```yaml
 # GitLab cơ bản
 GITLAB_EXTERNAL_URL: http://localhost:8088
-GITLAB_ROOT_PASSWORD: nextflow@2025
+GITLAB_ROOT_PASSWORD: Nex!tFlow@2025!
 
 # Database
 POSTGRES_USER: nextflow

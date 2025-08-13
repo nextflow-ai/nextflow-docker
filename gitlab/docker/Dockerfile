@@ -20,7 +20,7 @@ LABEL project="nextflow-crm-ai"
 
 # Environment variables
 ENV GITLAB_TIMEZONE=${GITLAB_TIMEZONE}
-ENV GITLAB_ROOT_PASSWORD="nextflow@2025"
+ENV GITLAB_ROOT_PASSWORD="Nex!tFlow@2025!"
 
 # Thiết lập timezone Việt Nam
 RUN ln -sf /usr/share/zoneinfo/${GITLAB_TIMEZONE} /etc/localtime \

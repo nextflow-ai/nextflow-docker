@@ -63,7 +63,7 @@ gitlab_rails['time_zone'] = 'Asia/Ho_Chi_Minh'
 
 # Disable GitLab KAS
 gitlab_kas['enable'] = false
-gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD'] || 'nextflow@2025'
+gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD'] || 'Nex!tFlow@2025!'
 gitlab_rails['time_zone'] = 'Asia/Ho_Chi_Minh'
 
 # ============================================================================
