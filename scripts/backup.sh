@@ -92,7 +92,7 @@ DATABASES_POSTGRESQL=(
     "nextflow_langflow"
     "nextflow_monitoring"
     "nextflow_stalwart_mail"
-    "gitlabhq_production"
+    "nextflow_gitlab"
 )
 
 DATABASES_MARIADB=(

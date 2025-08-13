@@ -4,6 +4,7 @@
 
 GitLab CE **Custom Build** được cấu hình trong `docker-compose.yml` với:
 - **Version cố định:** 16.11.10-ce.0 (đảm bảo tính ổn định)
+- **Cấu hình tập trung:** Tất cả biến được quản lý từ `.env`
 - **Custom Dockerfile** với NextFlow scripts
 - **PostgreSQL external** (shared database)
 - **Redis external** (shared cache)
@@ -41,13 +42,67 @@ GitLab CE **Custom Build** được cấu hình trong `docker-compose.yml` với
 
 ### 1. Cấu hình .env (đã có sẵn)
 
-Các biến GitLab trong `.env`:
+## 📋 Cấu hình tập trung từ .env
+
+Tất cả biến GitLab được quản lý tập trung trong file `.env`:
+
+### Version & Database:
 ```bash
 GITLAB_VERSION=16.11.10-ce.0
+GITLAB_DATABASE=nextflow_gitlab
+```
+
+### URLs & Access:
+```bash
 GITLAB_EXTERNAL_URL=http://localhost:8088
+GITLAB_REGISTRY_URL=http://localhost:5050
 GITLAB_ROOT_USERNAME=root
 GITLAB_ROOT_PASSWORD=Nex!tFlow@2025!
 GITLAB_ROOT_EMAIL=nextflow.vn@gmail.com
+```
+
+### Ports:
+```bash
+GITLAB_HTTP_PORT=8088
+GITLAB_HTTPS_PORT=8443
+GITLAB_SSH_PORT=2222
+GITLAB_REGISTRY_PORT=5050
+```
+
+### Performance:
+```bash
+GITLAB_PUMA_WORKERS=4
+GITLAB_PUMA_MIN_THREADS=4
+GITLAB_PUMA_MAX_THREADS=16
+GITLAB_SIDEKIQ_CONCURRENCY=10
+```
+
+### Resources:
+```bash
+GITLAB_CPU_LIMIT=4
+GITLAB_MEMORY_LIMIT=8G
+GITLAB_CPU_RESERVE=2
+GITLAB_MEMORY_RESERVE=4G
+```
+
+### Features:
+```bash
+GITLAB_SIGNUP_ENABLED=true
+GITLAB_BACKUP_KEEP_TIME=604800
+```
+
+## ✅ Lợi ích cấu hình tập trung
+
+- **🎯 Dễ quản lý:** Tất cả cấu hình ở một nơi
+- **🔧 Dễ thay đổi:** Chỉ cần sửa file `.env`
+- **🚀 Không hardcode:** Tránh giá trị cố định trong docker-compose
+- **🔄 Override được:** Có thể override bằng environment variables
+- **💾 Backup dễ:** Backup/restore cấu hình đơn giản
+- **🔍 Kiểm tra được:** Script `check-env-config.sh` để verify
+
+### Kiểm tra cấu hình:
+```bash
+./scripts/check-env-config.sh
 ```
 
 ### 2. Cài đặt GitLab
@@ -61,7 +116,7 @@ Script sẽ tự động:
 - Kiểm tra yêu cầu hệ thống
 - Tạo thư mục cần thiết
 - Khởi động PostgreSQL và Redis
-- Tạo database `gitlabhq_production`
+- Tạo database `nextflow_gitlab`
 - Khởi động GitLab container
 - Đợi GitLab sẵn sàng (5-10 phút)
 

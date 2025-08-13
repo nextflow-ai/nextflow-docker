@@ -10,7 +10,7 @@ ARG GITLAB_VERSION=16.11.10-ce.0
 ARG GITLAB_TIMEZONE=Asia/Ho_Chi_Minh
 
 # Base image - Cố định version để đảm bảo tính ổn định
-FROM gitlab/gitlab-ce:16.11.10-ce.0
+FROM gitlab/gitlab-ce:${GITLAB_VERSION}
 
 # Metadata
 LABEL maintainer="NextFlow Team"

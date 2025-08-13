@@ -124,10 +124,11 @@ check_gitlab_images() {
     local has_official=false
     
     # Kiểm tra custom image
-    if docker images nextflow/gitlab-ce:latest --format "{{.Repository}}" | grep -q "nextflow/gitlab-ce"; then
+    local custom_image="nextflow/gitlab-ce:${GITLAB_VERSION:-16.11.10-ce.0}"
+    if docker images "$custom_image" --format "{{.Repository}}" | grep -q "nextflow/gitlab-ce"; then
         has_custom=true
-        custom_info=$(docker images nextflow/gitlab-ce:latest --format "{{.ID}} {{.Size}}" | head -1)
-        echo "   [OK] Custom Image: nextflow/gitlab-ce:latest"
+        custom_info=$(docker images "$custom_image" --format "{{.ID}} {{.Size}}" | head -1)
+        echo "   [OK] Custom Image: $custom_image"
         echo "        ID: $(echo $custom_info | cut -d' ' -f1)"
         echo "        Size: $(echo $custom_info | cut -d' ' -f2)"
     fi
@@ -171,7 +172,8 @@ build_gitlab() {
         log_success "Build GitLab image thành công!"
         
         # Hiển thị thông tin image
-        image_info=$(docker images nextflow/gitlab-ce:latest --format "{{.ID}} {{.Size}}" | head -1)
+        local custom_image="nextflow/gitlab-ce:${GITLAB_VERSION:-16.11.10-ce.0}"
+        image_info=$(docker images "$custom_image" --format "{{.ID}} {{.Size}}" | head -1)
         if [ -n "$image_info" ]; then
             image_id=$(echo "$image_info" | cut -d' ' -f1)
             image_size=$(echo "$image_info" | cut -d' ' -f2)
@@ -206,9 +208,10 @@ install_gitlab() {
     has_custom_image=false
     has_official_image=false
     
-    if docker images nextflow/gitlab-ce:latest --format "{{.Repository}}" | grep -q "nextflow/gitlab-ce"; then
+    local custom_image="nextflow/gitlab-ce:${GITLAB_VERSION:-16.11.10-ce.0}"
+    if docker images "$custom_image" --format "{{.Repository}}" | grep -q "nextflow/gitlab-ce"; then
         has_custom_image=true
-        log_success "Tìm thấy custom image: nextflow/gitlab-ce:latest"
+        log_success "Tìm thấy custom image: $custom_image"
     fi
     
     if docker images gitlab/gitlab-ce --format "{{.Repository}}" | grep -q "gitlab/gitlab-ce"; then
@@ -251,8 +254,8 @@ install_gitlab() {
     
     # Tạo database cho GitLab
     log_info "Tạo database cho GitLab..."
-    docker exec postgres psql -U nextflow -c "SELECT 1 FROM pg_database WHERE datname = 'gitlabhq_production';" | grep -q 1 || \
-    docker exec postgres psql -U nextflow -c "CREATE DATABASE gitlabhq_production;" || true
+    docker exec postgres psql -U nextflow -c "SELECT 1 FROM pg_database WHERE datname = 'nextflow_gitlab';" | grep -q 1 || \
+    docker exec postgres psql -U nextflow -c "CREATE DATABASE nextflow_gitlab;" || true
     
     # Khởi động GitLab
     log_info "Khởi động GitLab..."

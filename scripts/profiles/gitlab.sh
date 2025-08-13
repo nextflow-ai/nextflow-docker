@@ -62,7 +62,7 @@ GITLAB_HTTP_PORT="${GITLAB_HTTP_PORT:-8088}"
 GITLAB_HTTPS_PORT="${GITLAB_HTTPS_PORT:-8443}"
 GITLAB_SSH_PORT="${GITLAB_SSH_PORT:-2222}"
 GITLAB_REGISTRY_PORT="${GITLAB_REGISTRY_PORT:-5050}"
-GITLAB_DATABASE="${GITLAB_DATABASE:-gitlabhq_production}"
+GITLAB_DATABASE="${GITLAB_DATABASE:-nextflow_gitlab}"
 
 # Thông tin GitLab từ .env
 GITLAB_ROOT_USERNAME="${GITLAB_ROOT_USERNAME:-root}"
@@ -231,7 +231,7 @@ setup_gitlab_database() {
         log_info "Cần thiết lập trong .env:"
         echo "  POSTGRES_USER_GITLAB=nextflow"
         echo "  POSTGRES_PASSWORD_GITLAB=nextflow@2025"
-        echo "  GITLAB_DATABASE=gitlabhq_production"
+        echo "  GITLAB_DATABASE=nextflow_gitlab"
         exit 1
     fi
 

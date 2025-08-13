@@ -366,7 +366,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-nextflow} # User chính
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nextflow@2025} # Password
       POSTGRES_DB: ${POSTGRES_DB:-nextflow} # Database chính
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-nextflow_n8n,gitlabhq_production}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-nextflow_n8n,nextflow_gitlab}
       PGDATA: /var/lib/postgresql/data/pgdata # Data directory
 
       # PostgreSQL specific settings
@@ -1148,9 +1148,9 @@ services:
       context: ./gitlab/docker
       dockerfile: Dockerfile
       args:
-        - GITLAB_VERSION=16.11.10-ce.0
+        - GITLAB_VERSION=${GITLAB_VERSION:-16.11.10-ce.0}
         - GITLAB_TIMEZONE=Asia/Ho_Chi_Minh
-    image: nextflow/gitlab-ce:latest
+    image: nextflow/gitlab-ce:${GITLAB_VERSION:-16.11.10-ce.0}
     container_name: gitlab
     hostname: gitlab
     restart: unless-stopped
@@ -1173,7 +1173,7 @@ services:
         gitlab_rails['db_port'] = 5432;
         gitlab_rails['db_username'] = '${POSTGRES_USER:-nextflow}';
         gitlab_rails['db_password'] = '${POSTGRES_PASSWORD:-nextflow@2025}';
-        gitlab_rails['db_database'] = 'gitlabhq_production';
+        gitlab_rails['db_database'] = '${GITLAB_DATABASE:-nextflow_gitlab}';
 
         # === CẤU HÌNH REDIS ===
         redis['enable'] = false;
@@ -1182,12 +1182,12 @@ services:
         gitlab_rails['redis_password'] = '${REDIS_PASSWORD:-nextflow@2025}';
 
         # === CẤU HÌNH SSH ===
-        gitlab_rails['gitlab_shell_ssh_port'] = 2222;
+        gitlab_rails['gitlab_shell_ssh_port'] = ${GITLAB_SSH_PORT:-2222};
 
         # === CẤU HÌNH CONTAINER REGISTRY ===
         registry_external_url '${GITLAB_REGISTRY_URL:-http://localhost:5050}';
         gitlab_rails['registry_enabled'] = true;
-        registry_nginx['listen_port'] = 5050;
+        registry_nginx['listen_port'] = ${GITLAB_REGISTRY_PORT:-5050};
 
         # === CẤU HÌNH EMAIL (STALWART MAIL) ===
         gitlab_rails['smtp_enable'] = ${GITLAB_SMTP_ENABLE:-true};
