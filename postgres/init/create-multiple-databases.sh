@@ -16,7 +16,7 @@ set -e
 : ${POSTGRES_USER:=nextflow}                     # Tên người dùng PostgreSQL mặc định
 : ${POSTGRES_PASSWORD:=nextflow@2025}           # Mật khẩu mặc định
 : ${POSTGRES_DB:=nextflow}                      # Database chính mặc định
-: ${POSTGRES_MULTIPLE_DATABASES:=nextflow_n8n,keycloak,gitlabhq_production}  # Danh sách database cần tạo
+: ${POSTGRES_MULTIPLE_DATABASES:=nextflow_n8n,gitlabhq_production}  # Danh sách database cần tạo
 
 # Xuất biến môi trường PGPASSWORD để sử dụng với lệnh psql
 export PGPASSWORD="$POSTGRES_PASSWORD"

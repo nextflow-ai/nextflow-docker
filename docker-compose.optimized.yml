@@ -1,0 +1,404 @@
+# ============================================================================
+# NEXTFLOW DOCKER COMPOSE - OPTIMIZED FOR CRM-AI (NO KEYCLOAK)
+# ============================================================================
+# Mô tả: Phiên bản tối ưu hóa cho CRM-AI, loại bỏ Keycloak
+# Phiên bản: 3.0
+# Cập nhật: 2025
+# ============================================================================
+
+# ĐỊNH NGHĨA CÁC VOLUMES
+volumes:
+  # === AI VÀ AUTOMATION ===
+  n8n_storage:
+  flowise:
+  ollama_storage:
+  qdrant_storage:
+  qdrant_snapshots:
+  open-webui:
+  langflow_data:
+  langflow_logs:
+
+  # === CƠ SỞ DỮ LIỆU ===
+  postgres_storage:
+  redis_data:
+  mariadb_data:
+
+  # === GIÁM SÁT ===
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  jaeger_data:
+
+  # === MESSAGING ===
+  rabbitmq_data:
+
+  # === QUẢN LÝ MÃ NGUỒN ===
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
+  gitlab_backups:
+
+  # === MAIL SERVER ===
+  stalwart_config:
+  stalwart_data:
+  stalwart_logs:
+
+  # === WORDPRESS ===
+  wordpress_data:
+
+# MẠNG
+networks:
+  nextflow:
+    driver: bridge
+    name: nextflow_network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# CẤU HÌNH MẶC ĐỊNH
+x-default-opts: &default-opts
+  restart: unless-stopped
+  networks: ['nextflow']
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+      compress: "true"
+
+# TEMPLATE N8N
+x-n8n: &service-n8n
+  <<: *default-opts
+  image: n8nio/n8n:latest
+  environment:
+    - DB_TYPE=postgresdb
+    - DB_POSTGRESDB_HOST=postgres
+    - DB_POSTGRESDB_USER=${POSTGRES_USER}
+    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+    - DB_POSTGRESDB_DATABASE=nextflow_n8n
+    - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+    - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET}
+    - N8N_DIAGNOSTICS_ENABLED=false
+    - N8N_PERSONALIZATION_ENABLED=false
+    - WEBHOOK_URL=${N8N_URL}
+    - QUEUE_BULL_REDIS_HOST=redis
+    - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD:-nextflow@2025}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+# TEMPLATE OLLAMA
+x-ollama: &service-ollama
+  <<: *default-opts
+  image: ollama/ollama:latest
+  volumes:
+    - ollama_storage:/root/.ollama
+  environment:
+    - OLLAMA_ORIGINS=*
+    - OLLAMA_HOST=0.0.0.0
+
+services:
+  # ============================================================================
+  # CORE CRM SERVICES
+  # ============================================================================
+
+  # PostgreSQL - Database chính cho CRM
+  postgres:
+    <<: *default-opts
+    image: postgres:16-alpine
+    container_name: postgres
+    hostname: postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-nextflow}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nextflow@2025}
+      - POSTGRES_DB=${POSTGRES_DB:-nextflow_crm}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+      - ./postgres/conf/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nextflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Redis - Cache và session storage
+  redis:
+    <<: *default-opts
+    image: redis:7.2-alpine
+    container_name: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-nextflow@2025} --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================================================
+  # AI & AUTOMATION SERVICES
+  # ============================================================================
+
+  # Flowise - AI Workflow Builder
+  flowise:
+    <<: *default-opts
+    image: flowiseai/flowise:latest
+    container_name: flowise
+    hostname: flowise
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - FLOWISE_USERNAME=${FLOWISE_USERNAME:-admin}
+      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD:-password}
+      - FLOWISE_SECRETKEY_OVERWRITE=${FLOWISE_SECRET_KEY:-your-secret-key}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-nextflow@2025}
+      - DATABASE_TYPE=sqlite
+      - DATABASE_PATH=/root/.flowise
+      - LOG_LEVEL=info
+      - LOG_PATH=/root/.flowise/logs
+    ports:
+      - "8001:3000"
+    volumes:
+      - flowise:/root/.flowise
+      - ./shared:/data/shared
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # n8n - Automation Platform
+  n8n:
+    <<: *service-n8n
+    container_name: n8n
+    hostname: n8n
+    ports:
+      - "8003:5678"
+    volumes:
+      - n8n_storage:/home/node/.n8n
+      - ./shared:/data/shared
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # Qdrant - Vector Database
+  qdrant:
+    <<: *default-opts
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    hostname: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+      - qdrant_snapshots:/qdrant/snapshots
+      - ./qdrant/config:/qdrant/config
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # Open WebUI - AI Chat Interface
+  open-webui:
+    <<: *default-opts
+    image: ghcr.io/open-webui/open-webui:latest
+    container_name: open-webui
+    hostname: open-webui
+    ports:
+      - "8002:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-secret-key}
+      - ENABLE_SIGNUP=${ENABLE_SIGNUP:-false}
+      - DEFAULT_USER_ROLE=${DEFAULT_USER_ROLE:-user}
+    depends_on:
+      - ollama-cpu
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # Ollama CPU
+  ollama-cpu:
+    profiles: ["cpu"]
+    <<: *service-ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+
+  # ============================================================================
+  # CONTENT MANAGEMENT (WordPress)
+  # ============================================================================
+
+  # MariaDB cho WordPress
+  mariadb:
+    <<: *default-opts
+    image: mariadb:11.2
+    container_name: mariadb
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-nextflow@2025}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-wordpress}
+      - MYSQL_USER=${MYSQL_USER:-wordpress}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-wordpress@2025}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # WordPress
+  wordpress:
+    <<: *default-opts
+    image: wordpress:6.8.1
+    container_name: wordpress
+    ports:
+      - "8080:80"
+    environment:
+      - WORDPRESS_DB_HOST=mariadb
+      - WORDPRESS_DB_USER=${MYSQL_USER:-wordpress}
+      - WORDPRESS_DB_PASSWORD=${MYSQL_PASSWORD:-wordpress@2025}
+      - WORDPRESS_DB_NAME=${MYSQL_DATABASE:-wordpress}
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./wordpress/themes:/var/www/html/wp-content/themes
+      - ./wordpress/plugins:/var/www/html/wp-content/plugins
+      - ./wordpress/uploads:/var/www/html/wp-content/uploads
+    depends_on:
+      - mariadb
+
+  # ============================================================================
+  # MONITORING SERVICES
+  # ============================================================================
+
+  # Prometheus
+  prometheus:
+    <<: *default-opts
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./monitoring/prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    profiles: ["monitoring"]
+
+  # Grafana
+  grafana:
+    <<: *default-opts
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "9001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    profiles: ["monitoring"]
+
+  # ============================================================================
+  # MAIL SERVER (Stalwart)
+  # ============================================================================
+
+  stalwart-mail:
+    <<: *default-opts
+    image: stalwartlabs/mail-server:latest
+    container_name: stalwart-mail
+    hostname: mail.${DOMAIN:-nextflow.local}
+    ports:
+      - "25:25"     # SMTP
+      - "587:587"   # Submission
+      - "465:465"   # SMTPS
+      - "143:143"   # IMAP
+      - "993:993"   # IMAPS
+      - "110:110"   # POP3
+      - "995:995"   # POP3S
+      - "8005:80"   # Admin interface
+    volumes:
+      - stalwart_data:/opt/stalwart-mail/data
+      - stalwart_config:/opt/stalwart-mail/etc
+      - stalwart_logs:/opt/stalwart-mail/logs
+      - ./stalwart/config:/opt/stalwart-mail/etc/config
+    environment:
+      - STALWART_HOSTNAME=mail.${DOMAIN:-nextflow.local}
+    profiles: ["mail"]
+
+  # ============================================================================
+  # DEVELOPMENT TOOLS (GitLab)
+  # ============================================================================
+
+  gitlab:
+    <<: *default-opts
+    image: gitlab/gitlab-ce:16.11.10-ce.0
+    container_name: gitlab
+    hostname: gitlab
+    ports:
+      - "8443:443"
+      - "8088:80"
+      - "2222:22"
+      - "5050:5050"
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+      - gitlab_backups:/var/opt/gitlab/backups
+    environment:
+      - GITLAB_OMNIBUS_CONFIG=|
+          external_url 'http://gitlab.${DOMAIN:-nextflow.local}:8088'
+          gitlab_rails['gitlab_shell_ssh_port'] = 2222
+          gitlab_rails['registry_enabled'] = true
+          registry_external_url 'http://gitlab.${DOMAIN:-nextflow.local}:5050'
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    profiles: ["gitlab"]

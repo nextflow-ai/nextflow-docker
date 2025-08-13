@@ -599,7 +599,7 @@ collect_deployment_diagnostics() {
                 profile_services=("rabbitmq")
                 ;;
             "auth")
-                profile_services=("postgres" "keycloak")
+                profile_services=("postgres")
                 ;;
             "tracing")
                 profile_services=("jaeger")

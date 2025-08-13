@@ -38,9 +38,6 @@ volumes:
   # === MESSAGING VÀ QUEUE ===
   rabbitmq_data: # Lưu trữ messages và queue configuration
 
-  # === BẢO MẬT VÀ XÁC THỰC ===
-  keycloak_data: # Lưu trữ cấu hình SSO và user management
-
   # === QUẢN LÝ MÃ NGUỒN ===
   gitlab_config: # Cấu hình GitLab (có thể dùng bind mount)
   gitlab_logs: # Logs của GitLab
@@ -369,7 +366,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-nextflow} # User chính
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nextflow@2025} # Password
       POSTGRES_DB: ${POSTGRES_DB:-nextflow} # Database chính
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-nextflow_n8n,keycloak,gitlabhq_production}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-nextflow_n8n,gitlabhq_production}
       PGDATA: /var/lib/postgresql/data/pgdata # Data directory
 
       # PostgreSQL specific settings
@@ -732,10 +729,6 @@ services:
       echo "Đang sao lưu cơ sở dữ liệu nextflow_n8n..."
       pg_dump -h postgres -U $$POSTGRES_USER -d nextflow_n8n -F c -b -v -f /backups/nextflow_n8n_$$TIMESTAMP.backup
 
-      # Sao lưu cơ sở dữ liệu keycloak
-      echo "Đang sao lưu cơ sở dữ liệu keycloak..."
-      pg_dump -h postgres -U $$POSTGRES_USER -d keycloak -F c -b -v -f /backups/keycloak_$$TIMESTAMP.backup
-
       # Sao lưu tất cả các cơ sở dữ liệu
       echo "Đang sao lưu tất cả các cơ sở dữ liệu..."
       pg_dumpall -h postgres -U $$POSTGRES_USER -f /backups/all_databases_$$TIMESTAMP.sql
@@ -958,42 +951,7 @@ services:
           cpus: '1'
           memory: 1G
     profiles: [ "messaging" ]
-
-  # Keycloak - Hệ thống quản lý xác thực và phân quyền (Identity Provider)
-  keycloak:
-    <<: *default-opts
-    image: quay.io/keycloak/keycloak:latest
-    container_name: keycloak
-    command: start-dev # Chế độ phát triển
-    environment:
-      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
-      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      - KC_DB=postgres # Sử dụng PostgreSQL
-      - KC_DB_URL=jdbc:postgresql://postgres:5432/${KEYCLOAK_DB:-keycloak}
-      - KC_DB_USERNAME=${POSTGRES_USER:-root}
-      - KC_DB_PASSWORD=${POSTGRES_PASSWORD:-nextflow@2025}
-      - KC_HOSTNAME=${KEYCLOAK_HOSTNAME:-keycloak.nextflow.vn}
-      - KC_HOSTNAME_STRICT=false # Không kiểm tra hostname nghiêm ngặt
-      - KC_HTTP_RELATIVE_PATH=/ # Đường dẫn gốc
-      - KC_PROXY=edge # Chế độ proxy
-      - KC_HTTP_ENABLED=true # Bật HTTP
-    ports:
-      - "8180:8080"
-    volumes:
-      - keycloak_data:/opt/keycloak/data
-    depends_on:
-      postgres:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    profiles: [ "auth" ]
-
+    
   # Jaeger - Hệ thống distributed tracing (theo dõi phân tán)
   jaeger:
     <<: *default-opts

@@ -27,7 +27,7 @@ NextFlow Docker là một hệ thống tích hợp hoàn chỉnh bao gồm các 
 - **cAdvisor**: Container monitoring (Port: 9003)
 
 ### Authentication & Security
-- **Keycloak**: Identity and access management (Port: 8004)
+- **NextAuth.js**: Authentication được tích hợp trong ứng dụng Next.js
 
 ### Communication & Collaboration
 - **Stalwart Mail Server**: Complete mail solution (Ports: 25, 587, 465, 143, 993, 110, 995, 8005)
@@ -132,7 +132,7 @@ docker-compose --profile development up -d
 | cAdvisor | 8080 | 9003 | Container Monitoring |
 | Jaeger | 16686 | 9004 | Distributed Tracing |
 | **Authentication** |
-| Keycloak | 8080 | 8004 | Identity Management |
+| NextAuth.js | - | - | Tích hợp trong ứng dụng Next.js |
 | **Mail Services** |
 | Stalwart Admin | 80 | 8005 | Mail Admin Interface |
 | SMTP | 25 | 25 | Mail Transfer |
@@ -299,7 +299,6 @@ save 60 10000
 | Open WebUI | `http://localhost:8002` | Built-in UI |
 | n8n | `http://localhost:8003` | Built-in UI |
 | Grafana | `http://localhost:9001` | Built-in UI |
-| Keycloak | `http://localhost:8004` | Admin Console |
 | Mail Admin | `http://localhost:8005` | Web Interface |
 
 ## 🤝 Contributing
