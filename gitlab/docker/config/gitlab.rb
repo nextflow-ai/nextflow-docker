@@ -21,7 +21,7 @@ gitlab_rails['db_host'] = ENV['GITLAB_DB_HOST'] || 'postgres'
 gitlab_rails['db_port'] = 5432
 gitlab_rails['db_username'] = ENV['GITLAB_DB_USER'] || 'nextflow'
 gitlab_rails['db_password'] = ENV['GITLAB_DB_PASSWORD'] || 'nextflow@2025'
-gitlab_rails['db_database'] = 'gitlabhq_production'
+gitlab_rails['db_database'] = 'nextflow_gitlab'
 
 # ============================================================================
 # CACHE - REDIS EXTERNAL
