@@ -429,21 +429,25 @@ show_interactive_menu() {
         echo "   3. [INSTALL] Cài đặt GitLab (auto-build nếu cần)"
         echo "   4. [INFO] Xem thông tin truy cập"
         echo ""
+        echo "   💾 BACKUP & RESTORE:"
+        echo "   5. [BACKUP] Sao lưu GitLab"
+        echo "   6. [RESTORE] Khôi phục GitLab"
+        echo ""
         echo "   🔧 TROUBLESHOOTING & FIX:"
-        echo "   5. [STATUS] Kiểm tra trạng thái tổng thể"
-        echo "   6. [CHECK-DB] Kiểm tra database"
-        echo "   7. [CREATE-ROOT] Tạo root user mới"
-        echo "   8. [RESET-ROOT] Reset root user"
-        echo "   9. [CLEAN-DB] Xóa database cũ"
-        echo "   10. [MIGRATE] Migrate database"
-        echo "   11. [RESET-ALL] Reset toàn bộ GitLab"
+        echo "   7. [STATUS] Kiểm tra trạng thái tổng thể"
+        echo "   8. [CHECK-DB] Kiểm tra database"
+        echo "   9. [CREATE-ROOT] Tạo root user mới"
+        echo "   10. [RESET-ROOT] Reset root user"
+        echo "   11. [CLEAN-DB] Xóa database cũ"
+        echo "   12. [MIGRATE] Migrate database"
+        echo "   13. [RESET-ALL] Reset toàn bộ GitLab"
         echo ""
         echo "   0. [EXIT] Thoát"
         echo ""
         echo "================================================================"
         echo ""
 
-        read -p "Nhập lựa chọn (0-10): " choice
+        read -p "Nhập lựa chọn (0-13): " choice
         echo ""
 
         case $choice in
@@ -464,30 +468,38 @@ show_interactive_menu() {
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
             5)
-                check_gitlab_status
+                backup_gitlab
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
             6)
-                check_databases
+                restore_gitlab
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
             7)
-                create_root_user
+                check_gitlab_status_detailed
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
             8)
-                reset_root_user
+                check_databases
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
             9)
-                clean_old_databases
+                create_root_user
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
             10)
-                migrate_database
+                reset_root_user
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
             11)
+                clean_old_databases
+                read -p "Nhấn Enter để tiếp tục..." -r
+                ;;
+            12)
+                migrate_database
+                read -p "Nhấn Enter để tiếp tục..." -r
+                ;;
+            13)
                 reset_all_gitlab
                 read -p "Nhấn Enter để tiếp tục..." -r
                 ;;
@@ -558,7 +570,7 @@ check_gitlab_container() {
 }
 
 # Kiểm tra trạng thái tổng thể GitLab
-check_gitlab_status() {
+check_gitlab_status_detailed() {
     echo "============================================"
     log_info "KIỂM TRA TRẠNG THÁI GITLAB TỔNG THỂ"
     echo "============================================"
@@ -912,8 +924,14 @@ main() {
         info)
             show_access_info
             ;;
+        backup)
+            backup_gitlab
+            ;;
+        restore)
+            restore_gitlab
+            ;;
         status)
-            check_gitlab_status
+            check_gitlab_status_detailed
             ;;
         check-db)
             check_databases
@@ -943,6 +961,10 @@ main() {
             echo "  build       - Build GitLab custom image"
             echo "  install     - Cài đặt GitLab"
             echo "  info        - Xem thông tin truy cập"
+            echo ""
+            echo "  💾 Backup & Restore:"
+            echo "  backup      - Sao lưu dữ liệu GitLab"
+            echo "  restore     - Khôi phục dữ liệu GitLab từ backup"
             echo ""
             echo "  🔧 Troubleshooting & Fix:"
             echo "  status      - Kiểm tra trạng thái tổng thể GitLab"
