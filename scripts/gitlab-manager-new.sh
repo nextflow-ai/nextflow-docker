@@ -112,6 +112,46 @@ EOF
     fi
 }
 
+# [RECONFIGURE] Reconfigure GitLab
+reconfigure_gitlab() {
+    log_info "Reconfigure GitLab..."
+
+    if ! docker ps | grep -q "$GITLAB_CONTAINER"; then
+        log_error "GitLab container không chạy"
+        exit 1
+    fi
+
+    log_info "Kiểm tra trạng thái GitLab services..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl status
+
+    log_info "Bắt đầu reconfigure GitLab..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure; then
+        log_success "✅ GitLab reconfigure thành công!"
+
+        log_info "Restart các services..."
+        if docker exec "$GITLAB_CONTAINER" gitlab-ctl restart; then
+            log_success "✅ GitLab services đã được restart!"
+        else
+            log_warning "⚠️ Một số services có thể chưa restart hoàn toàn"
+        fi
+
+        log_info "Kiểm tra trạng thái sau reconfigure..."
+        docker exec "$GITLAB_CONTAINER" gitlab-ctl status
+
+        log_success "GitLab reconfigure hoàn tất!"
+        log_info "Thông tin truy cập:"
+        echo "  🌐 URL: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
+        echo "  👤 Username: root"
+        echo "  🔑 Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}"
+        echo "  📧 Email: ${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}"
+    else
+        log_error "Lỗi reconfigure GitLab"
+        log_info "Kiểm tra logs:"
+        echo "  docker exec gitlab gitlab-ctl tail"
+        exit 1
+    fi
+}
+
 # [CHECK] Kiểm tra GitLab images
 check_images() {
     log_info "Kiểm tra GitLab images..."
@@ -383,50 +423,85 @@ create_root_user() {
         echo "  🔑 Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}"
         echo "  🌐 URL: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
     else
-        log_warning "Root user chưa tồn tại, đang tạo bằng GitLab seed..."
+        log_warning "Root user chưa tồn tại, đang tạo bằng Rails runner..."
 
-        # Cấu hình password policy trước khi tạo user
-        log_info "Cấu hình password policy cho phép password đơn giản..."
-        configure_password_policy
+        # Sử dụng Rails runner trực tiếp (đã test thành công)
+        log_info "Tạo/fix root user bằng Rails runner..."
+        if docker exec "$GITLAB_CONTAINER" gitlab-rails runner "
+        puts 'Kiểm tra và tạo/fix root user...'
 
-        # Sử dụng GitLab seed_fu với environment variables
-        log_info "Chạy GitLab database seeding..."
-        if docker exec "$GITLAB_CONTAINER" gitlab-rake db:seed_fu GITLAB_ROOT_PASSWORD="${GITLAB_ROOT_PASSWORD:-Nextflow@2025}" GITLAB_ROOT_EMAIL="${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}"; then
-            log_success "✅ Database seeding thành công"
-            log_info "Root user đã được tạo!"
+        # Xóa tất cả root users cũ để tránh duplicate
+        old_users = User.where(username: 'root')
+        if old_users.exists?
+          puts \"Tìm thấy #{old_users.count} root user(s) cũ, đang xóa...\"
+          old_users.destroy_all
+          puts 'Đã xóa root users cũ'
+        end
+
+        # Tạo root user mới với ID = 1
+        puts 'Tạo root user mới...'
+        user = User.new(
+          id: 1,
+          username: 'root',
+          email: '${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}',
+          name: 'Administrator',
+          password: '${GITLAB_ROOT_PASSWORD:-Nextflow@2025}',
+          password_confirmation: '${GITLAB_ROOT_PASSWORD:-Nextflow@2025}',
+          admin: true,
+          confirmed_at: Time.current,
+          state: 'active',
+          projects_limit: 100000,
+          can_create_group: true,
+          external: false
+        )
+
+        # Skip confirmation và save với bypass validation
+        user.skip_confirmation!
+
+        if user.save(validate: false)
+          puts '✅ Root user được tạo thành công!'
+          puts \"   ID: #{user.id}\"
+          puts \"   Username: #{user.username}\"
+          puts \"   Email: #{user.email}\"
+          puts \"   Admin: #{user.admin}\"
+          puts \"   State: #{user.state}\"
+          puts \"   Confirmed: #{user.confirmed?}\"
+          puts \"   External: #{user.external}\"
+          puts \"   Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}\"
+        else
+          puts '✗ Lỗi tạo root user!'
+          puts \"Errors: #{user.errors.full_messages}\"
+          exit 1
+        end
+        "; then
+            log_success "✅ Root user được tạo/kiểm tra thành công!"
             log_info "Thông tin truy cập:"
             echo "  👤 Username: root"
             echo "  🔑 Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}"
             echo "  📧 Email: ${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}"
             echo "  🌐 URL: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
         else
-            log_warning "⚠️ Database seeding có vấn đề - thử phương pháp backup"
+            log_warning "⚠️ Rails runner có vấn đề - thử GitLab seed..."
 
-            # Fallback: Tạo user trực tiếp
-            log_info "Thử tạo user trực tiếp..."
-            if docker exec "$GITLAB_CONTAINER" gitlab-rails runner "
-            puts 'Creating root user...'
-            user = User.create!(
-              username: 'root',
-              email: '${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}',
-              name: 'Administrator',
-              password: '${GITLAB_ROOT_PASSWORD:-Nextflow@2025}',
-              password_confirmation: '${GITLAB_ROOT_PASSWORD:-Nextflow@2025}',
-              admin: true,
-              confirmed_at: Time.current,
-              state: 'active'
-            )
-            user.skip_confirmation!
-            puts 'Root user created successfully!'
-            "; then
-                log_success "Root user được tạo thành công bằng fallback method!"
+            # Fallback: Cấu hình password policy và dùng seed
+            log_info "Cấu hình password policy..."
+            configure_password_policy
+
+            log_info "Thử GitLab database seeding..."
+            if docker exec "$GITLAB_CONTAINER" gitlab-rake db:seed_fu GITLAB_ROOT_PASSWORD=\"${GITLAB_ROOT_PASSWORD:-Nextflow@2025}\" GITLAB_ROOT_EMAIL=\"${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}\"; then
+                log_success "Database seeding thành công!"
                 log_info "Thông tin truy cập:"
                 echo "  👤 Username: root"
                 echo "  🔑 Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}"
                 echo "  📧 Email: ${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}"
                 echo "  🌐 URL: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
             else
-                log_error "Không thể tạo root user"
+                log_error "Không thể tạo root user bằng cả 2 phương pháp"
+                log_info "Vui lòng thử tạo manual qua GitLab console:"
+                echo "  docker exec -it gitlab gitlab-rails console"
+                echo "  user = User.create!(username: 'root', email: 'nextflow.vn@gmail.com', name: 'Administrator', password: '${GITLAB_ROOT_PASSWORD:-Nextflow@2025}', password_confirmation: '${GITLAB_ROOT_PASSWORD:-Nextflow@2025}', admin: true, confirmed_at: Time.current, state: 'active')"
+                echo "  user.skip_confirmation!"
+                echo "  user.save(validate: false)"
             fi
         fi
     fi
@@ -596,7 +671,8 @@ show_menu() {
     echo "7. [CREATE-ROOT] Tạo/quản lý root user"
     echo "8. [RESET-ROOT] Reset password root user"
     echo "9. [CONFIG] Cấu hình password policy đơn giản"
-    echo "10. Thoát"
+    echo "10. [RECONFIGURE] Reconfigure GitLab"
+    echo "11. Thoát"
     echo ""
 }
 
@@ -641,11 +717,15 @@ case "${1:-}" in
         check_docker
         configure_password_policy
         ;;
+    "reconfigure")
+        check_docker
+        reconfigure_gitlab
+        ;;
     "")
         # Menu tương tác
         while true; do
             show_menu
-            read -p "Chọn chức năng (1-10): " choice
+            read -p "Chọn chức năng (1-11): " choice
             
             case $choice in
                 1)
@@ -684,6 +764,10 @@ case "${1:-}" in
                     configure_password_policy
                     ;;
                 10)
+                    check_docker
+                    reconfigure_gitlab
+                    ;;
+                11)
                     log_info "Thoát chương trình"
                     exit 0
                     ;;
@@ -697,7 +781,7 @@ case "${1:-}" in
         done
         ;;
     *)
-        echo "Sử dụng: $0 [check|build|install|info|backup|restore|create-root|reset-root|config]"
+        echo "Sử dụng: $0 [check|build|install|info|backup|restore|create-root|reset-root|config|reconfigure]"
         echo "Hoặc chạy không tham số để vào menu tương tác"
         exit 1
         ;;

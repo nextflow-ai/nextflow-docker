@@ -164,7 +164,21 @@ logging['logrotate_rotate'] = 30
 # OPTIONAL FEATURES (DISABLED)
 # ============================================================================
 gitlab_pages['enable'] = false
-mattermost['enable'] = false# NextFlow Password Policy - Simple
+
+
+# NextFlow Password Policy - Simple & User Friendly
+gitlab_rails['password_authentication_enabled_for_web'] = true
+gitlab_rails['password_authentication_enabled_for_git'] = true
+
+# Disable strict password requirements
 gitlab_rails['minimum_password_length'] = 8
 gitlab_rails['password_complexity'] = false
+
+# Allow simple passwords
 gitlab_rails['password_blacklist_enabled'] = false
+gitlab_rails['password_require_uppercase'] = false
+gitlab_rails['password_require_lowercase'] = false
+gitlab_rails['password_require_numbers'] = false
+gitlab_rails['password_require_symbols'] = false
+
+# End NextFlow Password Policy
