@@ -1162,7 +1162,7 @@ services:
         # === CẤU HÌNH CƠ BẢN ===
         external_url '${GITLAB_EXTERNAL_URL:-http://localhost:8088}';
         gitlab_kas['enable'] = false;
-        gitlab_rails['initial_root_password'] = "${GITLAB_ROOT_PASSWORD:-Nex!tFlow@2025!}";
+        gitlab_rails['initial_root_password'] = "${GITLAB_ROOT_PASSWORD:-Nextflow@2025}";
         gitlab_rails['time_zone'] = 'Asia/Ho_Chi_Minh';
 
         # === CẤU HÌNH CƠ SỞ DỮ LIỆU ===

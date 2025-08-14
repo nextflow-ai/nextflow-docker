@@ -39,12 +39,12 @@ RUN mkdir -p /opt/nextflow/scripts \
     && mkdir -p /opt/nextflow/config
 
 # Sao chép các scripts NextFlow vào container
-COPY scripts/gitlab-init.sh /opt/nextflow/scripts/
-COPY scripts/gitlab-backup.sh /opt/nextflow/scripts/
-COPY scripts/docker-entrypoint.sh /opt/nextflow/scripts/
+COPY gitlab/docker/scripts/gitlab-init.sh /opt/nextflow/scripts/
+COPY gitlab/docker/scripts/gitlab-backup.sh /opt/nextflow/scripts/
+COPY gitlab/docker/scripts/docker-entrypoint.sh /opt/nextflow/scripts/
 
 # Sao chép file cấu hình mẫu GitLab
-COPY config/gitlab.rb /opt/nextflow/config/gitlab.rb.template
+COPY gitlab/docker/config/gitlab.rb /opt/nextflow/config/gitlab.rb.template
 
 # Cấp quyền thực thi cho tất cả scripts
 RUN chmod +x /opt/nextflow/scripts/*.sh
@@ -68,7 +68,7 @@ EXPOSE 80 443 22 5050
 VOLUME ["/etc/gitlab", "/var/log/gitlab", "/var/opt/gitlab"]
 
 # Sao chép và cấp quyền cho entry point script tùy chỉnh
-COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
+COPY gitlab/docker/scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Nhãn để Docker Compose nhận diện
