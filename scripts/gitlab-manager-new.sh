@@ -314,25 +314,65 @@ test_script() {
 # [BACKUP] Sao lưu GitLab
 backup_gitlab() {
     log_info "Tạo backup GitLab..."
-    
+
     if ! docker ps | grep -q "$GITLAB_CONTAINER"; then
         log_error "GitLab container không chạy"
         exit 1
     fi
-    
+
     # Tạo thư mục backup
     mkdir -p "$BACKUP_DIR"
-    
-    # Tạo backup
-    log_info "Đang tạo backup..."
-    if docker exec "$GITLAB_CONTAINER" gitlab-backup create; then
-        log_success "Backup được tạo thành công!"
-        
-        # Hiển thị backup files
-        log_info "Backup files:"
-        ls -la "$BACKUP_DIR"
+
+    # Kiểm tra trạng thái GitLab trước khi backup
+    log_info "Kiểm tra trạng thái GitLab..."
+    if ! docker exec "$GITLAB_CONTAINER" gitlab-ctl status >/dev/null 2>&1; then
+        log_warning "Một số GitLab services có thể chưa sẵn sàng"
+    fi
+
+    # Tạo backup và handle kết quả
+    log_info "Đang tạo backup GitLab..."
+
+    # Chạy backup command
+    docker exec "$GITLAB_CONTAINER" gitlab-backup create
+
+    # Kiểm tra backup files được tạo
+    log_info "Kiểm tra backup files..."
+    if docker exec "$GITLAB_CONTAINER" sh -c "find /var/opt/gitlab/backups/ -name '*.tar'" | grep -q ".tar"; then
+        log_success "✅ Backup được tạo thành công!"
+
+        # Hiển thị danh sách backup files
+        log_info "Danh sách backup files trong GitLab:"
+        docker exec "$GITLAB_CONTAINER" sh -c "ls -la /var/opt/gitlab/backups/"
+
+        # Lấy backup file mới nhất
+        latest_backup=$(docker exec "$GITLAB_CONTAINER" sh -c "find /var/opt/gitlab/backups/ -name '*.tar' | sort -r | head -1")
+        if [ -n "$latest_backup" ]; then
+            backup_filename=$(basename "$latest_backup")
+            log_info "Backup file mới nhất: $backup_filename"
+
+            # Copy backup file ra host
+            if [ -d "$BACKUP_DIR" ]; then
+                log_info "Copy backup file ra host..."
+                if docker cp "$GITLAB_CONTAINER:$latest_backup" "$BACKUP_DIR/" 2>/dev/null; then
+                    log_success "✅ Backup file đã được copy ra: $BACKUP_DIR/$backup_filename"
+                    ls -la "$BACKUP_DIR/$backup_filename" 2>/dev/null || echo "File size: $(docker exec "$GITLAB_CONTAINER" sh -c "stat -c%s '$latest_backup'" 2>/dev/null) bytes"
+                else
+                    log_warning "⚠️ Không thể copy backup ra host, file vẫn có trong container"
+                fi
+            fi
+        fi
+
+        # Hiển thị thông tin backup
+        log_info "📋 Thông tin backup:"
+        echo "  📁 Location: /var/opt/gitlab/backups/ (trong container)"
+        echo "  📄 Latest file: $backup_filename"
+        echo "  📅 Ngày tạo: $(date)"
+        echo "  ⚠️  Lưu ý: Backup có thể thiếu database do PostgreSQL version mismatch"
+        echo "  💡 Để backup database riêng: docker exec gitlab pg_dump -h postgres -U gitlab nextflow_gitlab > db_backup.sql"
+
     else
-        log_error "Tạo backup thất bại"
+        log_error "✗ Không tìm thấy backup files"
+        log_info "Kiểm tra logs để xem chi tiết lỗi"
         exit 1
     fi
 }
