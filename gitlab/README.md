@@ -28,18 +28,18 @@ gitlab/
 
 ### gitlab.rb
 File cấu hình chính của GitLab với các tối ưu cho NextFlow CRM-AI:
-- Vietnamese locale support
-- Performance tuning
-- Security configurations
-- Email settings
-- Backup configurations
+- Vietnamese locale support : hỗ trợ ngôn ngữ tiếng Việt
+- Performance tuning : tối ưu hiệu suất
+- Security configurations : cấu hình bảo mật
+- Email settings : cài đặt email
+- Backup configurations : cấu hình sao lưu
 
 ### Dockerfile
-Custom GitLab image với:
-- Vietnamese language pack
-- Performance optimizations
-- Security enhancements
-- Custom configurations
+Custom GitLab image : Docker image tùy chỉnh với:
+- Vietnamese language pack : gói ngôn ngữ tiếng Việt
+- Performance optimizations : tối ưu hiệu suất
+- Security enhancements : cải thiện bảo mật
+- Custom configurations : cấu hình tùy chỉnh
 
 ## 🔧 Scripts Hỗ Trợ
 
@@ -70,19 +70,19 @@ docker exec gitlab gitlab-rails runner /path/to/gitlab_status.rb
 ## 💾 Backup & Data
 
 ### backups/
-- Chứa GitLab backup files (.tar)
-- Được quản lý bởi GitLab Manager
-- Automatic cleanup theo retention policy
+- Chứa GitLab backup files : file sao lưu (.tar)
+- Được quản lý bởi GitLab Manager : công cụ quản lý GitLab
+- Automatic cleanup : dọn dẹp tự động theo retention policy : chính sách lưu trữ
 
 ### data/
-- Runtime data của GitLab
-- Được tạo tự động khi container chạy
-- Chứa repositories, uploads, artifacts
+- Runtime data : dữ liệu thời gian chạy của GitLab
+- Được tạo tự động khi container : thùng chứa ứng dụng chạy
+- Chứa repositories : kho mã nguồn, uploads : file tải lên, artifacts : sản phẩm build
 
 ### logs/
-- GitLab application logs
-- Được tạo tự động khi container chạy
-- Rotation tự động
+- GitLab application logs : nhật ký ứng dụng
+- Được tạo tự động khi container : thùng chứa chạy
+- Rotation : xoay vòng tự động
 
 ## 🚀 Sử Dụng
 
@@ -127,27 +127,27 @@ gitlab-rake gitlab:check
 
 ## 📊 Monitoring
 
-### Health Checks
+### Health Checks : kiểm tra sức khỏe hệ thống
 ```bash
-# GitLab health
+# GitLab health : sức khỏe GitLab
 curl http://localhost:8088/-/health
 
-# Readiness check
+# Readiness check : kiểm tra sẵn sàng
 curl http://localhost:8088/-/readiness
 
-# Liveness check
+# Liveness check : kiểm tra hoạt động
 curl http://localhost:8088/-/liveness
 ```
 
-### Logs Monitoring
+### Logs Monitoring : giám sát nhật ký
 ```bash
-# GitLab application logs
+# GitLab application logs : nhật ký ứng dụng GitLab
 docker exec gitlab tail -f /var/log/gitlab/gitlab-rails/production.log
 
-# Nginx access logs
+# Nginx access logs : nhật ký truy cập Nginx
 docker exec gitlab tail -f /var/log/gitlab/nginx/gitlab_access.log
 
-# System logs
+# System logs : nhật ký hệ thống
 docker logs gitlab
 ```
 
@@ -161,15 +161,15 @@ docker logs gitlab
 3. Check memory: `free -h`
 4. Reconfigure: `docker exec gitlab gitlab-ctl reconfigure`
 
-#### Database Issues
-1. Check PostgreSQL: `docker exec postgres pg_isready`
-2. Check connections: `docker exec gitlab gitlab-rake gitlab:check`
-3. Run migrations: `./scripts/gitlab-manager.sh migrate`
+#### Database Issues : vấn đề cơ sở dữ liệu
+1. Check PostgreSQL : kiểm tra PostgreSQL: `docker exec postgres pg_isready`
+2. Check connections : kiểm tra kết nối: `docker exec gitlab gitlab-rake gitlab:check`
+3. Run migrations : chạy migration: `./scripts/gitlab-manager.sh migrate`
 
-#### Performance Issues
-1. Check resources: `docker stats gitlab`
-2. Check GitLab status: `./scripts/gitlab-manager.sh status`
-3. Review configuration: `gitlab/config/gitlab.rb`
+#### Performance Issues : vấn đề hiệu suất
+1. Check resources : kiểm tra tài nguyên: `docker stats gitlab`
+2. Check GitLab status : kiểm tra trạng thái GitLab: `./scripts/gitlab-manager.sh status`
+3. Review configuration : xem lại cấu hình: `gitlab/config/gitlab.rb`
 
 ### Recovery Procedures
 

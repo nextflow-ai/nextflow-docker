@@ -26,21 +26,21 @@ email = ENV['GITLAB_ROOT_EMAIL'] || 'nextflow.vn@gmail.com'
 
 puts "Tạo tài khoản root với email: #{email}"
 
-# Create namespace first
+# Tạo namespace : không gian tên cho user trước
 namespace = Namespace.new(
   name: 'root',
   path: 'root'
 )
 
 if namespace.save
-  puts "Namespace created: #{namespace.path}"
+  puts "✓ Đã tạo namespace: #{namespace.path}"
 else
-  puts "Failed to create namespace:"
+  puts "✗ Lỗi tạo namespace:"
   namespace.errors.full_messages.each { |msg| puts "  - #{msg}" }
   exit 1
 end
 
-# Create new root user
+# Tạo tài khoản root mới
 begin
   user = User.create!(
     username: 'root',
@@ -53,18 +53,18 @@ begin
     namespace: namespace,
     skip_confirmation: true
   )
-  
-  # Update namespace owner
+
+  # Cập nhật chủ sở hữu namespace
   namespace.update!(owner: user)
-  
-  puts "Root user created successfully!"
-  puts "  Username: #{user.username}"
+
+  puts "✓ Tạo tài khoản root thành công!"
+  puts "  Tên đăng nhập: #{user.username}"
   puts "  Email: #{user.email}"
-  puts "  Admin: #{user.admin}"
+  puts "  Quyền quản trị: #{user.admin ? 'Có' : 'Không'}"
   puts "  Namespace: #{user.namespace.path}"
-  
+
 rescue ActiveRecord::RecordInvalid => e
-  puts "Failed to create user:"
+  puts "✗ Lỗi tạo tài khoản:"
   e.record.errors.full_messages.each { |msg| puts "  - #{msg}" }
   exit 1
 end
