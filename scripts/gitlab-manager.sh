@@ -1,10 +1,10 @@
 #!/bin/bash
 # ============================================================================
-# GITLAB MANAGER - SIMPLE VERSION
+# GITLAB MANAGER - ENHANCED VERSION
 # ============================================================================
-# Mô tả: Script quản lý GitLab đơn giản với các chức năng cơ bản
+# Mô tả: Script quản lý GitLab hoàn chỉnh với backup/restore đầy đủ
 # Tác giả: NextFlow Team
-# Phiên bản: 1.1.0
+# Phiên bản: 2.0.0
 # ============================================================================
 
 set -e
@@ -183,7 +183,7 @@ check_images() {
     fi
 
     echo ""
-    log_info "Để build custom image: ./scripts/gitlab-manager-new.sh build"
+    log_info "Để build custom image: ./scripts/gitlab-manager.sh build"
     echo ""
 }
 
@@ -208,43 +208,639 @@ build_image() {
     fi
 }
 
-# [INSTALL] Cài đặt GitLab
+# [INSTALL] Cài đặt GitLab với kiểm tra và migrate database
 install_gitlab() {
     log_info "Cài đặt GitLab..."
-    
+
     # Kiểm tra custom image
     if ! docker images | grep -q "nextflow/gitlab-ce.*16.11.10-ce.0"; then
         log_warning "Custom image phiên bản 16.11.10-ce.0 chưa tồn tại, đang build..."
         build_image
     fi
-    
+
     # Tạo thư mục cần thiết
     mkdir -p "$PROJECT_DIR/gitlab/config"
     mkdir -p "$PROJECT_DIR/gitlab/logs"
     mkdir -p "$PROJECT_DIR/gitlab/data"
     mkdir -p "$BACKUP_DIR"
-    
+
     cd "$PROJECT_DIR"
-    
+
     # Khởi động dependencies trước
     log_info "Khởi động PostgreSQL và Redis..."
     docker-compose up -d postgres redis
-    
+
     # Đợi PostgreSQL sẵn sàng
     log_info "Đợi PostgreSQL sẵn sàng..."
     sleep 10
-    
+
     # Tạo database cho GitLab
     log_info "Tạo database GitLab..."
     docker exec postgres psql -U nextflow -c "CREATE DATABASE nextflow_gitlab;" 2>/dev/null || true
-    
+
     # Khởi động GitLab
     log_info "Khởi động GitLab..."
     docker-compose up -d gitlab
-    
-    log_success "GitLab đang khởi động..."
-    log_info "Đợi 5-10 phút để GitLab hoàn tất khởi động"
-    log_info "Kiểm tra trạng thái: docker logs gitlab"
+
+    # Đợi GitLab container khởi động
+    log_info "Đợi GitLab container khởi động..."
+    local max_wait=60
+    local wait_count=0
+
+    while [ $wait_count -lt $max_wait ]; do
+        if docker ps | grep -q "$GITLAB_CONTAINER.*healthy\|$GITLAB_CONTAINER.*Up"; then
+            log_success "GitLab container đã khởi động"
+            break
+        fi
+
+        if [ $((wait_count % 10)) -eq 0 ]; then
+            log_info "Đợi GitLab container... ($wait_count/${max_wait}s)"
+        fi
+
+        sleep 1
+        wait_count=$((wait_count + 1))
+    done
+
+    if [ $wait_count -ge $max_wait ]; then
+        log_warning "GitLab container mất nhiều thời gian để khởi động"
+        log_info "Tiếp tục kiểm tra database..."
+    fi
+
+    # Đợi GitLab services sẵn sàng
+    log_info "Đợi GitLab services sẵn sàng..."
+    sleep 30
+
+    # Kiểm tra GitLab đã sẵn sàng chưa (với timeout ngắn)
+    log_info "🔍 Kiểm tra GitLab readiness..."
+
+    # Quick check với timeout ngắn
+    local quick_check=0
+    if timeout 10 docker exec "$GITLAB_CONTAINER" gitlab-rails runner "puts User.count" >/dev/null 2>&1; then
+        quick_check=1
+    fi
+
+    if [ $quick_check -eq 1 ]; then
+        log_success "✅ GitLab đã sẵn sàng và database hoạt động tốt"
+        log_info "💡 Bỏ qua database check vì GitLab đang hoạt động bình thường"
+    else
+        # Kiểm tra container có healthy không
+        local container_health=$(docker inspect "$GITLAB_CONTAINER" --format='{{.State.Health.Status}}' 2>/dev/null)
+        if [ "$container_health" = "healthy" ]; then
+            log_info "⏳ Container healthy nhưng Rails chưa sẵn sàng, đợi thêm..."
+            sleep 30
+
+            # Thử lại lần cuối
+            if timeout 15 docker exec "$GITLAB_CONTAINER" gitlab-rails runner "puts 'OK'" >/dev/null 2>&1; then
+                log_success "✅ GitLab đã sẵn sàng sau khi đợi"
+            else
+                log_warning "⚠️  GitLab mất nhiều thời gian, có thể cần kiểm tra database"
+                log_info "💡 Sử dụng: ./scripts/gitlab-manager.sh check-db để kiểm tra riêng"
+            fi
+        else
+            log_info "⚠️  GitLab chưa sẵn sàng, tiến hành kiểm tra database..."
+            # Kiểm tra và migrate database chỉ khi cần thiết
+            check_and_migrate_database
+        fi
+    fi
+
+    log_success "GitLab đã được cài đặt!"
+    log_info "📋 Thông tin quan trọng:"
+    echo "   🌐 URL: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
+    echo "   👤 Username: root"
+    echo "   🔑 Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}"
+    echo ""
+    log_info "⏳ GitLab sẽ sẵn sàng hoàn toàn trong 5-10 phút"
+    log_info "💡 Kiểm tra trạng thái: docker logs gitlab"
+    log_info "💡 Tạo root user: ./scripts/gitlab-manager.sh create-root"
+}
+
+# [READINESS] Kiểm tra GitLab readiness với tolerance cao hơn
+check_gitlab_readiness() {
+    # Kiểm tra container đang chạy
+    if ! docker ps | grep -q "$GITLAB_CONTAINER.*Up"; then
+        return 1
+    fi
+
+    # Kiểm tra container health (nếu có)
+    local container_health=$(docker inspect "$GITLAB_CONTAINER" --format='{{.State.Health.Status}}' 2>/dev/null)
+    if [ "$container_health" = "unhealthy" ]; then
+        return 1
+    fi
+
+    # Thử kiểm tra GitLab services (với timeout ngắn)
+    local services_check=$(timeout 5 docker exec "$GITLAB_CONTAINER" gitlab-ctl status 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        # Container chưa sẵn sàng cho exec commands
+        return 1
+    fi
+
+    # Nếu có services fail thì chưa sẵn sàng
+    if echo "$services_check" | grep -q "fail:"; then
+        return 1
+    fi
+
+    # Kiểm tra Rails environment (timeout ngắn)
+    if timeout 8 docker exec "$GITLAB_CONTAINER" gitlab-rails runner "puts 'OK'" 2>/dev/null | grep -q "OK"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# [DATABASE] Kiểm tra và migrate database GitLab
+check_and_migrate_database() {
+    log_info "🔍 Kiểm tra trạng thái database GitLab..."
+
+    # Kiểm tra GitLab readiness với patience cao hơn
+    log_info "⏳ Đợi GitLab sẵn sàng..."
+    local readiness_attempts=60  # Tăng từ 30 lên 60 (10 phút)
+    local readiness_count=1
+    local last_container_id=""
+
+    while [ $readiness_count -le $readiness_attempts ]; do
+        # Kiểm tra container có bị restart không
+        local current_container_id=$(docker ps -q -f name="$GITLAB_CONTAINER")
+        if [ -n "$last_container_id" ] && [ "$current_container_id" != "$last_container_id" ]; then
+            log_warning "⚠️  GitLab container đã restart, reset counter..."
+            readiness_count=1
+        fi
+        last_container_id="$current_container_id"
+
+        # Kiểm tra container đang chạy
+        if ! docker ps | grep -q "$GITLAB_CONTAINER.*Up"; then
+            log_warning "⚠️  GitLab container không chạy, đợi khởi động..."
+            sleep 15
+            readiness_count=$((readiness_count + 1))
+            continue
+        fi
+
+        # Kiểm tra readiness
+        if check_gitlab_readiness >/dev/null 2>&1; then
+            log_success "✅ GitLab đã sẵn sàng cho database check"
+            break
+        fi
+
+        # Log progress mỗi 5 lần
+        if [ $((readiness_count % 5)) -eq 0 ]; then
+            log_info "Đợi GitLab readiness... ($readiness_count/$readiness_attempts)"
+
+            # Hiển thị thông tin debug mỗi 10 lần
+            if [ $((readiness_count % 10)) -eq 0 ]; then
+                local container_status=$(docker ps --format "table {{.Status}}" -f name="$GITLAB_CONTAINER" | tail -1)
+                log_info "📊 Container status: $container_status"
+            fi
+        fi
+
+        sleep 10
+        readiness_count=$((readiness_count + 1))
+    done
+
+    if [ $readiness_count -gt $readiness_attempts ]; then
+        log_warning "⚠️  GitLab mất quá nhiều thời gian để sẵn sàng ($(($readiness_attempts * 10 / 60)) phút)"
+        log_info "💡 Thử kiểm tra database với limited functionality..."
+
+        # Kiểm tra container có đang chạy không
+        if ! docker ps | grep -q "$GITLAB_CONTAINER.*Up"; then
+            log_error "❌ GitLab container không chạy, không thể kiểm tra database"
+            return 1
+        fi
+    fi
+
+    # Kiểm tra xem GitLab có đang reconfigure không
+    log_info "🔄 Kiểm tra trạng thái GitLab reconfigure..."
+    if docker exec "$GITLAB_CONTAINER" ps aux | grep -q "cinc-client\|chef-client" && ! docker exec "$GITLAB_CONTAINER" ps aux | grep -q "gitlab-rails"; then
+        log_info "⏳ GitLab đang trong quá trình reconfigure, đợi hoàn tất..."
+
+        local reconfigure_wait=0
+        local max_reconfigure_wait=300  # 5 phút
+
+        while [ $reconfigure_wait -lt $max_reconfigure_wait ]; do
+            if ! docker exec "$GITLAB_CONTAINER" ps aux | grep -q "cinc-client\|chef-client"; then
+                log_success "✅ GitLab reconfigure hoàn tất!"
+                break
+            fi
+
+            if [ $((reconfigure_wait % 30)) -eq 0 ]; then
+                log_info "Đợi reconfigure... ($reconfigure_wait/${max_reconfigure_wait}s)"
+            fi
+
+            sleep 10
+            reconfigure_wait=$((reconfigure_wait + 10))
+        done
+
+        if [ $reconfigure_wait -ge $max_reconfigure_wait ]; then
+            log_warning "⚠️  Reconfigure mất quá nhiều thời gian, tiếp tục kiểm tra..."
+        fi
+
+        # Đợi thêm để GitLab services khởi động
+        log_info "⏳ Đợi GitLab services khởi động sau reconfigure..."
+        sleep 30
+    fi
+
+    # Kiểm tra database connection
+    log_info "📡 Kiểm tra kết nối database..."
+    local db_check_attempts=3
+    local db_check_count=1
+
+    while [ $db_check_count -le $db_check_attempts ]; do
+        if docker exec "$GITLAB_CONTAINER" gitlab-rails runner "puts 'Database connection: OK'" 2>/dev/null | grep -q "Database connection: OK"; then
+            log_success "✅ Database connection OK"
+            break
+        else
+            log_warning "⚠️  Database connection attempt $db_check_count/$db_check_attempts failed"
+
+            if [ $db_check_count -eq $db_check_attempts ]; then
+                log_warning "🔧 Thử reconfigure GitLab để fix database connection..."
+                docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure >/dev/null 2>&1 &
+                log_info "⏳ Reconfigure đang chạy background, tiếp tục kiểm tra..."
+                sleep 60
+            else
+                sleep 20
+            fi
+        fi
+
+        db_check_count=$((db_check_count + 1))
+    done
+
+    # Kiểm tra database schema
+    log_info "🗄️  Kiểm tra database schema..."
+
+    # Đợi Rails environment sẵn sàng
+    log_info "⏳ Đợi Rails environment sẵn sàng..."
+    local rails_wait=0
+    local max_rails_wait=120
+
+    while [ $rails_wait -lt $max_rails_wait ]; do
+        if docker exec "$GITLAB_CONTAINER" gitlab-rails runner "puts 'Rails ready'" 2>/dev/null | grep -q "Rails ready"; then
+            log_success "✅ Rails environment sẵn sàng"
+            break
+        fi
+
+        if [ $((rails_wait % 20)) -eq 0 ]; then
+            log_info "Đợi Rails... ($rails_wait/${max_rails_wait}s)"
+        fi
+
+        sleep 10
+        rails_wait=$((rails_wait + 10))
+    done
+
+    if [ $rails_wait -ge $max_rails_wait ]; then
+        log_warning "⚠️  Rails environment mất nhiều thời gian, thử kiểm tra database..."
+    fi
+
+    # Kiểm tra bảng quan trọng có tồn tại không
+    local tables_check=$(docker exec "$GITLAB_CONTAINER" timeout 30 gitlab-rails runner "
+        begin
+            puts 'Users table: ' + (ActiveRecord::Base.connection.table_exists?('users') ? 'EXISTS' : 'MISSING')
+            puts 'Projects table: ' + (ActiveRecord::Base.connection.table_exists?('projects') ? 'EXISTS' : 'MISSING')
+            puts 'Issues table: ' + (ActiveRecord::Base.connection.table_exists?('issues') ? 'EXISTS' : 'MISSING')
+        rescue => e
+            puts 'ERROR: ' + e.message
+        end
+    " 2>/dev/null)
+
+    if [ -z "$tables_check" ] || echo "$tables_check" | grep -q "ERROR"; then
+        log_warning "⚠️  Không thể kiểm tra database schema (GitLab có thể chưa sẵn sàng)"
+        echo "$tables_check"
+        echo ""
+        log_info "🔧 Thử setup database cơ bản..."
+
+        # Thử setup database nếu Rails chưa sẵn sàng
+        if docker exec "$GITLAB_CONTAINER" timeout 60 gitlab-rake db:create db:schema:load 2>/dev/null; then
+            log_success "✅ Database setup cơ bản thành công!"
+        else
+            log_warning "⚠️  Database setup có vấn đề, GitLab sẽ tự động setup khi sẵn sàng"
+        fi
+
+    elif echo "$tables_check" | grep -q "MISSING"; then
+        log_warning "⚠️  Database schema chưa đầy đủ!"
+        echo "$tables_check"
+        echo ""
+
+        # Kiểm tra migration status
+        log_info "📋 Kiểm tra migration status..."
+        local migration_status=$(docker exec "$GITLAB_CONTAINER" gitlab-rake db:migrate:status 2>/dev/null | head -20)
+
+        if echo "$migration_status" | grep -q "down"; then
+            log_warning "🔄 Phát hiện migrations chưa chạy!"
+            echo ""
+            log_info "🚀 Bắt đầu database migration..."
+
+            # Chạy database migrations
+            if docker exec "$GITLAB_CONTAINER" gitlab-rake db:migrate; then
+                log_success "✅ Database migration thành công!"
+
+                # Verify lại sau migration
+                log_info "🔍 Verify database sau migration..."
+                local verify_result=$(docker exec "$GITLAB_CONTAINER" gitlab-rails runner "
+                    puts 'Users table: ' + (User.table_exists? ? 'OK' : 'ERROR')
+                    puts 'Projects table: ' + (Project.table_exists? ? 'OK' : 'ERROR')
+                    puts 'Total users: ' + User.count.to_s
+                " 2>/dev/null)
+
+                if echo "$verify_result" | grep -q "ERROR"; then
+                    log_error "❌ Database verification thất bại sau migration!"
+                    echo "$verify_result"
+                else
+                    log_success "✅ Database verification thành công!"
+                    echo "$verify_result"
+                fi
+
+            else
+                log_error "❌ Database migration thất bại!"
+                log_info "💡 Thử các bước sau:"
+                echo "   1. docker exec gitlab gitlab-ctl reconfigure"
+                echo "   2. docker exec gitlab gitlab-rake db:setup"
+                echo "   3. docker restart gitlab"
+                return 1
+            fi
+
+        else
+            log_info "ℹ️  Migrations đã được chạy, thử setup database..."
+
+            # Thử setup database
+            if docker exec "$GITLAB_CONTAINER" gitlab-rake db:setup; then
+                log_success "✅ Database setup thành công!"
+            else
+                log_warning "⚠️  Database setup có vấn đề, nhưng có thể vẫn hoạt động"
+            fi
+        fi
+
+    else
+        log_success "✅ Database schema đầy đủ!"
+        echo "$tables_check"
+
+        # Hiển thị thống kê database
+        log_info "📊 Thống kê database:"
+        local stats=$(docker exec "$GITLAB_CONTAINER" gitlab-rails runner "
+            puts 'Total users: ' + User.count.to_s
+            puts 'Total projects: ' + Project.count.to_s
+            puts 'Total issues: ' + Issue.count.to_s
+        " 2>/dev/null)
+        echo "$stats"
+    fi
+
+    # Kiểm tra GitLab health
+    log_info "🏥 Kiểm tra GitLab health..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-rake gitlab:check SANITIZE=true >/dev/null 2>&1; then
+        log_success "✅ GitLab health check passed!"
+    else
+        log_warning "⚠️  GitLab health check có warnings (có thể bình thường lúc mới cài đặt)"
+    fi
+
+    log_success "🎉 Database check và migration hoàn tất!"
+}
+
+# [MIGRATE] Force migrate database GitLab
+migrate_gitlab_database() {
+    log_info "🚀 Force migrate GitLab database..."
+
+    # Kiểm tra container đang chạy
+    if ! docker ps | grep -q "$GITLAB_CONTAINER.*Up"; then
+        log_error "❌ GitLab container không chạy"
+        return 1
+    fi
+
+    # Kiểm tra database connection
+    log_info "📡 Kiểm tra database connection..."
+    if ! docker exec postgres psql -U nextflow -d nextflow_gitlab -c "SELECT 1;" >/dev/null 2>&1; then
+        log_error "❌ Không thể kết nối database"
+        return 1
+    fi
+
+    log_success "✅ Database connection OK"
+
+    # Hiển thị current database status
+    log_info "📊 Current database status:"
+    local table_count=$(docker exec postgres psql -U nextflow -d nextflow_gitlab -c "\dt" 2>/dev/null | grep -c "table" || echo "0")
+    echo "   Tables: $table_count"
+
+    local migration_count=$(docker exec postgres psql -U nextflow -d nextflow_gitlab -c "SELECT COUNT(*) FROM schema_migrations;" 2>/dev/null | grep -o "[0-9]*" | head -1 || echo "0")
+    echo "   Migrations: $migration_count"
+
+    if [ "$table_count" -lt 10 ]; then
+        log_warning "⚠️  Database thiếu tables chính - cần migrate!"
+    fi
+
+    # Dừng GitLab để migrate an toàn
+    log_info "🛑 Dừng GitLab services để migrate an toàn..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop >/dev/null 2>&1 || true
+
+    # Đợi services dừng
+    sleep 10
+
+    # Chạy database setup và migrate
+    log_info "🔧 Chạy database setup và migrate..."
+
+    # Thử db:setup trước (tạo schema cơ bản)
+    log_info "📋 Step 1: Database setup..."
+    if docker exec "$GITLAB_CONTAINER" timeout 300 gitlab-rake db:setup RAILS_ENV=production; then
+        log_success "✅ Database setup thành công!"
+    else
+        log_warning "⚠️  Database setup có vấn đề, thử migrate..."
+
+        # Fallback: chạy migrate
+        log_info "🔄 Step 2: Database migrate..."
+        if docker exec "$GITLAB_CONTAINER" timeout 300 gitlab-rake db:migrate RAILS_ENV=production; then
+            log_success "✅ Database migrate thành công!"
+        else
+            log_error "❌ Database migrate thất bại!"
+            log_info "🔧 Thử force migrate..."
+            docker exec "$GITLAB_CONTAINER" timeout 300 gitlab-rake db:schema:load RAILS_ENV=production
+        fi
+    fi
+
+    # Verify migration results
+    log_info "🔍 Verify migration results..."
+    local new_table_count=$(docker exec postgres psql -U nextflow -d nextflow_gitlab -c "\dt" 2>/dev/null | grep -c "table" || echo "0")
+    local new_migration_count=$(docker exec postgres psql -U nextflow -d nextflow_gitlab -c "SELECT COUNT(*) FROM schema_migrations;" 2>/dev/null | grep -o "[0-9]*" | head -1 || echo "0")
+
+    echo "📊 Migration results:"
+    echo "   Tables: $table_count → $new_table_count"
+    echo "   Migrations: $migration_count → $new_migration_count"
+
+    if [ "$new_table_count" -gt 50 ]; then
+        log_success "✅ Database migration thành công! ($new_table_count tables)"
+    else
+        log_warning "⚠️  Database migration chưa hoàn chỉnh ($new_table_count tables)"
+    fi
+
+    # Khởi động lại GitLab
+    log_info "🚀 Khởi động lại GitLab..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl start
+
+    log_success "🎉 Database migration hoàn tất!"
+    log_info "💡 GitLab sẽ sẵn sàng trong 2-3 phút"
+}
+
+# [RESET-DB] Reset và recreate database GitLab
+reset_gitlab_database() {
+    log_info "🔄 Reset và recreate GitLab database..."
+
+    # Xác nhận từ user
+    log_warning "⚠️  CẢNH BÁO: Thao tác này sẽ XÓA TOÀN BỘ dữ liệu GitLab!"
+    echo "   - Tất cả repositories sẽ bị mất"
+    echo "   - Tất cả users, projects, issues sẽ bị mất"
+    echo "   - Không thể khôi phục sau khi xóa"
+    echo ""
+    read -p "Bạn có chắc chắn muốn reset database? (yes/no): " confirm
+
+    if [ "$confirm" != "yes" ]; then
+        log_info "Hủy reset database"
+        return 0
+    fi
+
+    # Dừng GitLab
+    log_info "🛑 Dừng GitLab services..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop >/dev/null 2>&1 || true
+    sleep 5
+
+    # Force terminate database connections
+    log_info "🔌 Terminate database connections..."
+    docker exec postgres psql -U nextflow -c "
+        SELECT pg_terminate_backend(pid)
+        FROM pg_stat_activity
+        WHERE datname = 'nextflow_gitlab' AND pid <> pg_backend_pid();
+    " >/dev/null 2>&1 || true
+
+    sleep 2
+
+    # Drop và recreate database
+    log_info "🗑️  Drop database cũ..."
+    docker exec postgres psql -U nextflow -c "DROP DATABASE IF EXISTS nextflow_gitlab;"
+
+    log_info "🆕 Tạo database mới..."
+    docker exec postgres psql -U nextflow -c "CREATE DATABASE nextflow_gitlab;"
+
+    # Verify database mới
+    local new_table_count=$(docker exec postgres psql -U nextflow -d nextflow_gitlab -c "\dt" 2>/dev/null | grep -c "table" || echo "0")
+    log_success "✅ Database mới đã được tạo (tables: $new_table_count)"
+
+    # Setup database schema
+    log_info "📋 Setup database schema..."
+    if docker exec "$GITLAB_CONTAINER" timeout 300 gitlab-rake db:schema:load RAILS_ENV=production; then
+        log_success "✅ Database schema load thành công!"
+    else
+        log_error "❌ Database schema load thất bại!"
+        return 1
+    fi
+
+    # Verify kết quả
+    local final_table_count=$(docker exec postgres psql -U nextflow -d nextflow_gitlab -c "\dt" 2>/dev/null | grep -c "table" || echo "0")
+    local migration_count=$(docker exec postgres psql -U nextflow -d nextflow_gitlab -c "SELECT COUNT(*) FROM schema_migrations;" 2>/dev/null | grep -o "[0-9]*" | head -1 || echo "0")
+
+    echo "📊 Database reset results:"
+    echo "   Tables: $final_table_count"
+    echo "   Migrations: $migration_count"
+
+    if [ "$final_table_count" -gt 50 ]; then
+        log_success "✅ Database reset thành công!"
+    else
+        log_warning "⚠️  Database reset chưa hoàn chỉnh"
+    fi
+
+    # Khởi động GitLab
+    log_info "🚀 Khởi động GitLab..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl start
+
+    log_success "🎉 Database reset hoàn tất!"
+    log_info "💡 GitLab sẽ sẵn sàng trong 2-3 phút"
+    log_info "💡 Cần tạo root user: ./scripts/gitlab-manager.sh create-root"
+}
+
+# [FIX-422] Fix lỗi 422 "The change you requested was rejected"
+fix_422_error() {
+    log_info "🔧 Fix lỗi 422 'The change you requested was rejected'..."
+
+    # Kiểm tra GitLab đang chạy
+    if ! docker ps | grep -q "$GITLAB_CONTAINER.*Up"; then
+        log_error "❌ GitLab container không chạy"
+        return 1
+    fi
+
+    log_info "📋 Các nguyên nhân và cách fix lỗi 422:"
+    echo ""
+    echo "🔍 NGUYÊN NHÂN THƯỜNG GẶP:"
+    echo "   1. GitLab chưa hoàn tất khởi động"
+    echo "   2. CSRF token không hợp lệ"
+    echo "   3. Browser cache cũ"
+    echo "   4. Root user chưa được activate"
+    echo "   5. Session timeout"
+    echo ""
+
+    # Fix 1: Restart GitLab services
+    log_info "🔄 Fix 1: Restart GitLab services..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl restart puma
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl restart sidekiq
+    sleep 10
+
+    # Fix 2: Clear cache
+    log_info "🧹 Fix 2: Clear GitLab cache..."
+    docker exec "$GITLAB_CONTAINER" gitlab-rake cache:clear >/dev/null 2>&1 || true
+    docker exec "$GITLAB_CONTAINER" gitlab-rake tmp:clear >/dev/null 2>&1 || true
+
+    # Fix 3: Reconfigure GitLab
+    log_info "⚙️  Fix 3: Reconfigure GitLab..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure >/dev/null 2>&1 &
+
+    # Fix 4: Verify và recreate root user
+    log_info "👤 Fix 4: Verify và recreate root user..."
+
+    # Kiểm tra root user
+    local root_check=$(docker exec "$GITLAB_CONTAINER" timeout 30 gitlab-rails runner "
+        begin
+            user = User.find_by(username: 'root')
+            if user
+                puts 'EXISTS:' + user.active?.to_s + ':' + user.confirmed?.to_s
+            else
+                puts 'NOT_EXISTS'
+            end
+        rescue => e
+            puts 'ERROR:' + e.message
+        end
+    " 2>/dev/null)
+
+    if echo "$root_check" | grep -q "NOT_EXISTS\|ERROR"; then
+        log_warning "⚠️  Root user có vấn đề, recreate..."
+        create_root_user
+    elif echo "$root_check" | grep -q "EXISTS:false\|EXISTS:true:false"; then
+        log_warning "⚠️  Root user chưa active/confirmed, fix..."
+
+        # Activate và confirm root user
+        docker exec "$GITLAB_CONTAINER" timeout 30 gitlab-rails runner "
+            user = User.find_by(username: 'root')
+            if user
+                user.activate
+                user.confirm
+                user.save!
+                puts 'Root user activated and confirmed'
+            end
+        " 2>/dev/null || true
+    else
+        log_success "✅ Root user OK"
+    fi
+
+    # Fix 5: Reset sessions
+    log_info "🔐 Fix 5: Reset user sessions..."
+    docker exec "$GITLAB_CONTAINER" timeout 30 gitlab-rails runner "
+        ActiveRecord::SessionStore::Session.delete_all
+        puts 'All sessions cleared'
+    " 2>/dev/null || true
+
+    echo ""
+    log_success "🎉 Hoàn tất fix lỗi 422!"
+    echo ""
+    log_info "💡 CÁCH KHẮC PHỤC THÊM:"
+    echo "   1. Xóa browser cache và cookies"
+    echo "   2. Thử trình duyệt ẩn danh (incognito)"
+    echo "   3. Đợi 2-3 phút để GitLab hoàn tất restart"
+    echo "   4. Truy cập: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
+    echo "   5. Username: root"
+    echo "   6. Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}"
+    echo ""
+    log_info "🔍 Nếu vẫn lỗi, kiểm tra logs:"
+    echo "        docker logs gitlab --tail 50"
+    echo "        docker exec gitlab gitlab-ctl tail gitlab-rails"
 }
 
 # [INFO] Xem thông tin truy cập
@@ -272,56 +868,26 @@ show_info() {
     fi
 }
 
-# Test function để kiểm tra script
-test_script() {
-    log_info "Testing GitLab Manager Script..."
-    echo ""
 
-    log_info "1. Kiểm tra cấu hình..."
-    echo "   Project Dir: $PROJECT_DIR"
-    echo "   Compose File: $COMPOSE_FILE"
-    echo "   Env File: $ENV_FILE"
-    echo "   Backup Dir: $BACKUP_DIR"
-    echo ""
 
-    log_info "2. Kiểm tra files..."
-    if [ -f "$COMPOSE_FILE" ]; then
-        log_success "docker-compose.yml tồn tại"
-    else
-        log_warning "docker-compose.yml không tồn tại"
-    fi
-
-    if [ -f "$ENV_FILE" ]; then
-        log_success ".env file tồn tại"
-    else
-        log_warning ".env file không tồn tại"
-    fi
-
-    if [ -d "$PROJECT_DIR/gitlab/docker" ]; then
-        log_success "GitLab docker directory tồn tại"
-    else
-        log_warning "GitLab docker directory không tồn tại"
-    fi
-
-    echo ""
-    log_info "3. Hiển thị thông tin truy cập..."
-    show_info
-
-    echo ""
-    log_success "Script test hoàn tất!"
-}
-
-# [BACKUP] Sao lưu GitLab
+# [BACKUP] Sao lưu GitLab hoàn chỉnh theo chuẩn GitLab Official
 backup_gitlab() {
-    log_info "Tạo backup GitLab..."
+    log_info "Tạo backup GitLab hoàn chỉnh..."
 
     if ! docker ps | grep -q "$GITLAB_CONTAINER"; then
         log_error "GitLab container không chạy"
         exit 1
     fi
 
-    # Tạo thư mục backup
-    mkdir -p "$BACKUP_DIR"
+    # Tạo thư mục backup với timestamp
+    local backup_timestamp=$(date +"%Y%m%d_%H%M%S")
+    local full_backup_dir="$BACKUP_DIR/gitlab_backup_$backup_timestamp"
+    mkdir -p "$full_backup_dir"
+    mkdir -p "$full_backup_dir/config"
+    mkdir -p "$full_backup_dir/secrets"
+    mkdir -p "$full_backup_dir/data"
+
+    log_info "📁 Backup directory: $full_backup_dir"
 
     # Kiểm tra trạng thái GitLab trước khi backup
     log_info "Kiểm tra trạng thái GitLab..."
@@ -329,56 +895,456 @@ backup_gitlab() {
         log_warning "Một số GitLab services có thể chưa sẵn sàng"
     fi
 
-    # Tạo backup và handle kết quả
-    log_info "Đang tạo backup GitLab..."
+    # ========================================
+    # BƯỚC 1: Backup GitLab Data (repositories, database, uploads, etc.)
+    # ========================================
+    log_info "🗄️  BƯỚC 1: Backup GitLab data..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-backup create; then
+        log_success "✅ GitLab data backup thành công!"
 
-    # Chạy backup command
-    docker exec "$GITLAB_CONTAINER" gitlab-backup create
-
-    # Kiểm tra backup files được tạo
-    log_info "Kiểm tra backup files..."
-    if docker exec "$GITLAB_CONTAINER" sh -c "find /var/opt/gitlab/backups/ -name '*.tar'" | grep -q ".tar"; then
-        log_success "✅ Backup được tạo thành công!"
-
-        # Hiển thị danh sách backup files
-        log_info "Danh sách backup files trong GitLab:"
-        docker exec "$GITLAB_CONTAINER" sh -c "ls -la /var/opt/gitlab/backups/"
-
-        # Lấy backup file mới nhất
+        # Copy backup file ra host
         latest_backup=$(docker exec "$GITLAB_CONTAINER" sh -c "find /var/opt/gitlab/backups/ -name '*.tar' | sort -r | head -1")
         if [ -n "$latest_backup" ]; then
             backup_filename=$(basename "$latest_backup")
-            log_info "Backup file mới nhất: $backup_filename"
-
-            # Copy backup file ra host
-            if [ -d "$BACKUP_DIR" ]; then
-                log_info "Copy backup file ra host..."
-                if docker cp "$GITLAB_CONTAINER:$latest_backup" "$BACKUP_DIR/" 2>/dev/null; then
-                    log_success "✅ Backup file đã được copy ra: $BACKUP_DIR/$backup_filename"
-                    ls -la "$BACKUP_DIR/$backup_filename" 2>/dev/null || echo "File size: $(docker exec "$GITLAB_CONTAINER" sh -c "stat -c%s '$latest_backup'" 2>/dev/null) bytes"
-                else
-                    log_warning "⚠️ Không thể copy backup ra host, file vẫn có trong container"
-                fi
-            fi
+            log_info "Copy backup file: $backup_filename"
+            docker cp "$GITLAB_CONTAINER:$latest_backup" "$full_backup_dir/data/"
+            log_success "✅ Data backup copied to: $full_backup_dir/data/$backup_filename"
         fi
-
-        # Hiển thị thông tin backup
-        log_info "📋 Thông tin backup:"
-        echo "  📁 Location: /var/opt/gitlab/backups/ (trong container)"
-        echo "  📄 Latest file: $backup_filename"
-        echo "  📅 Ngày tạo: $(date)"
-        echo "  ⚠️  Lưu ý: Backup có thể thiếu database do PostgreSQL version mismatch"
-        echo "  💡 Để backup database riêng: docker exec gitlab pg_dump -h postgres -U gitlab nextflow_gitlab > db_backup.sql"
-
     else
-        log_error "✗ Không tìm thấy backup files"
-        log_info "Kiểm tra logs để xem chi tiết lỗi"
-        exit 1
+        log_error "❌ GitLab data backup thất bại!"
+        return 1
     fi
+
+    # ========================================
+    # BƯỚC 2: Backup GitLab Secrets (QUAN TRỌNG NHẤT!)
+    # ========================================
+    log_info "🔐 BƯỚC 2: Backup GitLab secrets..."
+    if docker exec "$GITLAB_CONTAINER" test -f "/etc/gitlab/gitlab-secrets.json"; then
+        docker cp "$GITLAB_CONTAINER:/etc/gitlab/gitlab-secrets.json" "$full_backup_dir/secrets/"
+        log_success "✅ gitlab-secrets.json backed up"
+    else
+        log_error "❌ CẢNH BÁO: gitlab-secrets.json không tồn tại!"
+        log_warning "⚠️  Restore sẽ không thể decrypt dữ liệu!"
+    fi
+
+    # ========================================
+    # BƯỚC 3: Backup GitLab Configuration
+    # ========================================
+    log_info "⚙️  BƯỚC 3: Backup GitLab configuration..."
+    if docker exec "$GITLAB_CONTAINER" test -f "/etc/gitlab/gitlab.rb"; then
+        docker cp "$GITLAB_CONTAINER:/etc/gitlab/gitlab.rb" "$full_backup_dir/config/"
+        log_success "✅ gitlab.rb backed up"
+    else
+        log_warning "⚠️  gitlab.rb không tồn tại (có thể dùng ENV variables)"
+    fi
+
+    # ========================================
+    # BƯỚC 4: Backup SSH Host Keys
+    # ========================================
+    log_info "🔑 BƯỚC 4: Backup SSH host keys..."
+    if docker exec "$GITLAB_CONTAINER" test -d "/etc/gitlab/ssh_host_keys"; then
+        docker cp "$GITLAB_CONTAINER:/etc/gitlab/ssh_host_keys" "$full_backup_dir/config/"
+        log_success "✅ SSH host keys backed up"
+    else
+        log_info "ℹ️  SSH host keys không tồn tại (sẽ được tạo lại)"
+    fi
+
+    # ========================================
+    # BƯỚC 5: Backup TLS/SSL Certificates
+    # ========================================
+    log_info "🔒 BƯỚC 5: Backup TLS certificates..."
+    if docker exec "$GITLAB_CONTAINER" test -d "/etc/gitlab/ssl"; then
+        docker cp "$GITLAB_CONTAINER:/etc/gitlab/ssl" "$full_backup_dir/config/"
+        log_success "✅ TLS certificates backed up"
+    else
+        log_info "ℹ️  TLS certificates không tồn tại"
+    fi
+
+    # ========================================
+    # BƯỚC 6: Backup Trusted Certificates
+    # ========================================
+    log_info "📜 BƯỚC 6: Backup trusted certificates..."
+    if docker exec "$GITLAB_CONTAINER" test -d "/etc/gitlab/trusted-certs"; then
+        docker cp "$GITLAB_CONTAINER:/etc/gitlab/trusted-certs" "$full_backup_dir/config/"
+        log_success "✅ Trusted certificates backed up"
+    else
+        log_info "ℹ️  Trusted certificates không tồn tại"
+    fi
+
+    # ========================================
+    # BƯỚC 7: Tạo backup info file
+    # ========================================
+    log_info "📋 BƯỚC 7: Tạo backup information file..."
+    cat > "$full_backup_dir/backup_info.txt" << EOF
+# GitLab Backup Information
+# Generated: $(date)
+# ========================================
+
+BACKUP_TIMESTAMP=$backup_timestamp
+GITLAB_VERSION=$(docker exec "$GITLAB_CONTAINER" cat /opt/gitlab/version-manifest.txt | head -1 2>/dev/null || echo "Unknown")
+BACKUP_TYPE=FULL_BACKUP
+GITLAB_CONTAINER=$GITLAB_CONTAINER
+
+# Files included:
+# - Data backup: data/$backup_filename
+# - Secrets: secrets/gitlab-secrets.json
+# - Config: config/gitlab.rb
+# - SSH keys: config/ssh_host_keys/
+# - TLS certs: config/ssl/
+# - Trusted certs: config/trusted-certs/
+
+# Restore command:
+# ./scripts/gitlab-manager.sh restore-full $full_backup_dir
+
+EOF
+
+    # ========================================
+    # BƯỚC 8: Tạo restore script
+    # ========================================
+    log_info "📝 BƯỚC 8: Tạo restore script..."
+    cat > "$full_backup_dir/restore.sh" << 'EOF'
+#!/bin/bash
+# GitLab Full Restore Script
+# Auto-generated by gitlab-manager.sh
+
+BACKUP_DIR="$(cd "$(dirname "$0")" && pwd)"
+GITLAB_CONTAINER="gitlab"
+
+echo "🔄 Restoring GitLab from: $BACKUP_DIR"
+
+# 1. Stop GitLab services
+echo "⏹️  Stopping GitLab services..."
+docker exec "$GITLAB_CONTAINER" gitlab-ctl stop puma
+docker exec "$GITLAB_CONTAINER" gitlab-ctl stop sidekiq
+
+# 2. Restore secrets FIRST (quan trọng nhất!)
+if [ -f "$BACKUP_DIR/secrets/gitlab-secrets.json" ]; then
+    echo "🔐 Restoring GitLab secrets..."
+    docker cp "$BACKUP_DIR/secrets/gitlab-secrets.json" "$GITLAB_CONTAINER:/etc/gitlab/"
+    docker exec "$GITLAB_CONTAINER" chown root:root /etc/gitlab/gitlab-secrets.json
+    docker exec "$GITLAB_CONTAINER" chmod 600 /etc/gitlab/gitlab-secrets.json
+    echo "✅ Secrets restored"
+else
+    echo "❌ WARNING: No secrets file found!"
+fi
+
+# 3. Restore configuration
+if [ -f "$BACKUP_DIR/config/gitlab.rb" ]; then
+    echo "⚙️  Restoring GitLab configuration..."
+    docker cp "$BACKUP_DIR/config/gitlab.rb" "$GITLAB_CONTAINER:/etc/gitlab/"
+    echo "✅ Configuration restored"
+fi
+
+# 4. Restore SSH keys
+if [ -d "$BACKUP_DIR/config/ssh_host_keys" ]; then
+    echo "🔑 Restoring SSH host keys..."
+    docker cp "$BACKUP_DIR/config/ssh_host_keys" "$GITLAB_CONTAINER:/etc/gitlab/"
+    echo "✅ SSH keys restored"
+fi
+
+# 5. Restore TLS certificates
+if [ -d "$BACKUP_DIR/config/ssl" ]; then
+    echo "🔒 Restoring TLS certificates..."
+    docker cp "$BACKUP_DIR/config/ssl" "$GITLAB_CONTAINER:/etc/gitlab/"
+    echo "✅ TLS certificates restored"
+fi
+
+# 6. Restore trusted certificates
+if [ -d "$BACKUP_DIR/config/trusted-certs" ]; then
+    echo "📜 Restoring trusted certificates..."
+    docker cp "$BACKUP_DIR/config/trusted-certs" "$GITLAB_CONTAINER:/etc/gitlab/"
+    echo "✅ Trusted certificates restored"
+fi
+
+# 7. Reconfigure GitLab
+echo "🔧 Reconfiguring GitLab..."
+docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure
+
+# 8. Restore data backup
+DATA_BACKUP=$(find "$BACKUP_DIR/data" -name "*_gitlab_backup.tar" | head -1)
+if [ -f "$DATA_BACKUP" ]; then
+    BACKUP_NAME=$(basename "$DATA_BACKUP" | sed 's/_gitlab_backup.tar$//')
+    echo "🗄️  Restoring data backup: $BACKUP_NAME"
+
+    # Copy backup file to container
+    docker cp "$DATA_BACKUP" "$GITLAB_CONTAINER:/var/opt/gitlab/backups/"
+    docker exec "$GITLAB_CONTAINER" chown git:git "/var/opt/gitlab/backups/$(basename "$DATA_BACKUP")"
+
+    # Restore backup
+    docker exec "$GITLAB_CONTAINER" gitlab-backup restore BACKUP="$BACKUP_NAME" GITLAB_ASSUME_YES=1
+    echo "✅ Data backup restored"
+else
+    echo "❌ No data backup found!"
+fi
+
+# 9. Start GitLab services
+echo "▶️  Starting GitLab services..."
+docker exec "$GITLAB_CONTAINER" gitlab-ctl start
+
+echo "✅ GitLab restore completed!"
+echo "🌐 GitLab should be available at: http://localhost:8088"
+EOF
+
+    chmod +x "$full_backup_dir/restore.sh"
+
+    # ========================================
+    # BƯỚC 9: Hiển thị kết quả
+    # ========================================
+    echo ""
+    log_success "🎉 BACKUP HOÀN TẤT!"
+    echo ""
+    echo "📁 Backup location: $full_backup_dir"
+    echo "📊 Backup contents:"
+    echo "   🗄️  Data: $(ls -la "$full_backup_dir/data/" 2>/dev/null | wc -l) files"
+    echo "   🔐 Secrets: $(ls -la "$full_backup_dir/secrets/" 2>/dev/null | wc -l) files"
+    echo "   ⚙️  Config: $(ls -la "$full_backup_dir/config/" 2>/dev/null | wc -l) files"
+    echo ""
+    echo "📝 Restore options:"
+    echo "   1. Auto restore: $full_backup_dir/restore.sh"
+    echo "   2. Manual restore: ./scripts/gitlab-manager.sh restore-full $full_backup_dir"
+    echo ""
+    echo "💾 Backup size: $(du -sh "$full_backup_dir" | cut -f1)"
+    echo "📅 Created: $(date)"
+    echo ""
+    log_info "💡 Lưu ý: Backup này bao gồm TẤT CẢ dữ liệu cần thiết để restore hoàn toàn GitLab!"
 }
 
-# [RESTORE] Khôi phục GitLab từ backup
-restore_gitlab() {
+
+
+# [RESTORE-FULL] Khôi phục GitLab hoàn chỉnh từ full backup
+restore_full_gitlab() {
+    local backup_path="$1"
+
+    if [ -z "$backup_path" ]; then
+        log_error "Vui lòng cung cấp đường dẫn backup directory"
+        echo "Sử dụng: $0 restore-full /path/to/backup/directory"
+        exit 1
+    fi
+
+    if [ ! -d "$backup_path" ]; then
+        log_error "Backup directory không tồn tại: $backup_path"
+        exit 1
+    fi
+
+    if [ ! -f "$backup_path/backup_info.txt" ]; then
+        log_error "Không phải backup directory hợp lệ (thiếu backup_info.txt)"
+        exit 1
+    fi
+
+    log_info "🔄 Khôi phục GitLab từ full backup..."
+    log_info "📁 Backup path: $backup_path"
+
+    # Đọc thông tin backup
+    source "$backup_path/backup_info.txt"
+    log_info "📅 Backup timestamp: $BACKUP_TIMESTAMP"
+    log_info "🏷️  GitLab version: $GITLAB_VERSION"
+
+    if ! docker ps | grep -q "$GITLAB_CONTAINER"; then
+        log_error "GitLab container không chạy"
+        exit 1
+    fi
+
+    # Xác nhận restore
+    echo ""
+    log_warning "⚠️  CẢNH BÁO: Restore sẽ GHI ĐÈ tất cả dữ liệu GitLab hiện tại!"
+    log_warning "Bao gồm: repositories, users, issues, merge requests, settings, secrets"
+    echo ""
+    read -p "Bạn có chắc chắn muốn restore? (yes/no): " confirm
+
+    if [ "$confirm" != "yes" ]; then
+        log_info "Hủy restore"
+        exit 0
+    fi
+
+    # ========================================
+    # BƯỚC 1: Dừng GitLab services
+    # ========================================
+    log_info "⏹️  BƯỚC 1: Dừng GitLab services..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop puma 2>/dev/null || true
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop sidekiq 2>/dev/null || true
+
+    # ========================================
+    # BƯỚC 2: Restore GitLab Secrets (QUAN TRỌNG NHẤT!)
+    # ========================================
+    log_info "🔐 BƯỚC 2: Restore GitLab secrets..."
+    if [ -f "$backup_path/secrets/gitlab-secrets.json" ]; then
+        docker cp "$backup_path/secrets/gitlab-secrets.json" "$GITLAB_CONTAINER:/etc/gitlab/"
+        docker exec "$GITLAB_CONTAINER" chown root:root /etc/gitlab/gitlab-secrets.json
+        docker exec "$GITLAB_CONTAINER" chmod 600 /etc/gitlab/gitlab-secrets.json
+        log_success "✅ GitLab secrets restored"
+    else
+        log_error "❌ CẢNH BÁO: Không tìm thấy gitlab-secrets.json!"
+        log_warning "⚠️  Restore có thể thành công nhưng dữ liệu encrypted sẽ không thể decrypt!"
+        echo ""
+        read -p "Tiếp tục restore? (yes/no): " continue_without_secrets
+
+        if [ "$continue_without_secrets" != "yes" ]; then
+            log_info "Hủy restore"
+            exit 0
+        fi
+    fi
+
+    # ========================================
+    # BƯỚC 3: Restore GitLab Configuration
+    # ========================================
+    log_info "⚙️  BƯỚC 3: Restore GitLab configuration..."
+    if [ -f "$backup_path/config/gitlab.rb" ]; then
+        docker cp "$backup_path/config/gitlab.rb" "$GITLAB_CONTAINER:/etc/gitlab/"
+        docker exec "$GITLAB_CONTAINER" chown root:root /etc/gitlab/gitlab.rb
+        docker exec "$GITLAB_CONTAINER" chmod 600 /etc/gitlab/gitlab.rb
+        log_success "✅ GitLab configuration restored"
+    else
+        log_info "ℹ️  Không có gitlab.rb (có thể dùng ENV variables)"
+    fi
+
+    # ========================================
+    # BƯỚC 4: Restore SSH Host Keys
+    # ========================================
+    log_info "🔑 BƯỚC 4: Restore SSH host keys..."
+    if [ -d "$backup_path/config/ssh_host_keys" ]; then
+        docker cp "$backup_path/config/ssh_host_keys" "$GITLAB_CONTAINER:/etc/gitlab/"
+        docker exec "$GITLAB_CONTAINER" chown -R root:root /etc/gitlab/ssh_host_keys
+        docker exec "$GITLAB_CONTAINER" chmod 600 /etc/gitlab/ssh_host_keys/*
+        log_success "✅ SSH host keys restored"
+    else
+        log_info "ℹ️  Không có SSH host keys (sẽ được tạo lại)"
+    fi
+
+    # ========================================
+    # BƯỚC 5: Restore TLS/SSL Certificates
+    # ========================================
+    log_info "🔒 BƯỚC 5: Restore TLS certificates..."
+    if [ -d "$backup_path/config/ssl" ]; then
+        docker cp "$backup_path/config/ssl" "$GITLAB_CONTAINER:/etc/gitlab/"
+        docker exec "$GITLAB_CONTAINER" chown -R root:root /etc/gitlab/ssl
+        docker exec "$GITLAB_CONTAINER" chmod 600 /etc/gitlab/ssl/*
+        log_success "✅ TLS certificates restored"
+    else
+        log_info "ℹ️  Không có TLS certificates"
+    fi
+
+    # ========================================
+    # BƯỚC 6: Restore Trusted Certificates
+    # ========================================
+    log_info "📜 BƯỚC 6: Restore trusted certificates..."
+    if [ -d "$backup_path/config/trusted-certs" ]; then
+        docker cp "$backup_path/config/trusted-certs" "$GITLAB_CONTAINER:/etc/gitlab/"
+        docker exec "$GITLAB_CONTAINER" chown -R root:root /etc/gitlab/trusted-certs
+        log_success "✅ Trusted certificates restored"
+    else
+        log_info "ℹ️  Không có trusted certificates"
+    fi
+
+    # ========================================
+    # BƯỚC 7: Reconfigure GitLab
+    # ========================================
+    log_info "🔧 BƯỚC 7: Reconfigure GitLab..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure; then
+        log_success "✅ GitLab reconfigure thành công"
+    else
+        log_error "❌ GitLab reconfigure thất bại"
+        return 1
+    fi
+
+    # ========================================
+    # BƯỚC 8: Restore Data Backup
+    # ========================================
+    log_info "🗄️  BƯỚC 8: Restore data backup..."
+
+    # Tìm data backup file
+    data_backup=$(find "$backup_path/data" -name "*_gitlab_backup.tar" | head -1)
+    if [ ! -f "$data_backup" ]; then
+        log_error "❌ Không tìm thấy data backup file!"
+        return 1
+    fi
+
+    backup_filename=$(basename "$data_backup")
+    backup_name=$(echo "$backup_filename" | sed 's/_gitlab_backup.tar$//')
+
+    log_info "📄 Data backup file: $backup_filename"
+    log_info "🏷️  Backup ID: $backup_name"
+
+    # Copy backup file vào container
+    log_info "📋 Copy backup file vào container..."
+    docker cp "$data_backup" "$GITLAB_CONTAINER:/var/opt/gitlab/backups/"
+    docker exec "$GITLAB_CONTAINER" chown git:git "/var/opt/gitlab/backups/$backup_filename"
+
+    # Dừng Puma và Sidekiq trước khi restore data
+    log_info "⏹️  Dừng Puma và Sidekiq..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop puma
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop sidekiq
+
+    # Verify services đã dừng
+    log_info "✅ Verify services đã dừng..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl status
+
+    # Thực hiện restore data
+    log_info "🔄 Bắt đầu restore data (có thể mất vài phút)..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-backup restore BACKUP="$backup_name" GITLAB_ASSUME_YES=1; then
+        log_success "✅ Data restore thành công!"
+    else
+        log_error "❌ Data restore thất bại!"
+        log_info "💡 Thử khởi động services và kiểm tra lại..."
+        docker exec "$GITLAB_CONTAINER" gitlab-ctl start
+        return 1
+    fi
+
+    # ========================================
+    # BƯỚC 9: Reconfigure lại sau restore
+    # ========================================
+    log_info "🔧 BƯỚC 9: Reconfigure GitLab sau restore..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure
+
+    # ========================================
+    # BƯỚC 10: Khởi động tất cả services
+    # ========================================
+    log_info "▶️  BƯỚC 10: Khởi động tất cả GitLab services..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl start
+
+    # ========================================
+    # BƯỚC 11: Verify restore
+    # ========================================
+    log_info "🔍 BƯỚC 11: Verify restore..."
+    sleep 15
+
+    # Check GitLab
+    log_info "Kiểm tra GitLab health..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-rake gitlab:check SANITIZE=true; then
+        log_success "✅ GitLab health check passed!"
+    else
+        log_warning "⚠️  GitLab health check có warnings (có thể bình thường)"
+    fi
+
+    # Verify secrets
+    log_info "Kiểm tra GitLab secrets..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-rake gitlab:doctor:secrets; then
+        log_success "✅ GitLab secrets verification passed!"
+    else
+        log_warning "⚠️  GitLab secrets có vấn đề"
+    fi
+
+    # ========================================
+    # BƯỚC 12: Hiển thị kết quả
+    # ========================================
+    echo ""
+    log_success "🎉 RESTORE HOÀN TẤT!"
+    echo ""
+    echo "🌐 GitLab URL: ${GITLAB_EXTERNAL_URL:-http://localhost:8088}"
+    echo "👤 Username: root"
+    echo "🔑 Password: ${GITLAB_ROOT_PASSWORD:-Nextflow@2025}"
+    echo "📧 Email: ${GITLAB_ROOT_EMAIL:-nextflow.vn@gmail.com}"
+    echo ""
+    echo "📊 Restored from backup:"
+    echo "   📅 Backup date: $BACKUP_TIMESTAMP"
+    echo "   🏷️  GitLab version: $GITLAB_VERSION"
+    echo "   📁 Backup path: $backup_path"
+    echo ""
+    log_info "⏳ GitLab sẽ sẵn sàng hoàn toàn trong 2-3 phút"
+    log_info "💡 Nếu có vấn đề, kiểm tra logs: docker logs gitlab"
+}
+
+# [RESTORE] Khôi phục GitLab từ backup (LEGACY - sử dụng restore-full thay thế)
+restore_gitlab_legacy() {
     log_info "Khôi phục GitLab từ backup..."
 
     if ! docker ps | grep -q "$GITLAB_CONTAINER"; then
@@ -474,61 +1440,64 @@ restore_gitlab() {
     docker exec "$GITLAB_CONTAINER" gitlab-ctl stop puma 2>/dev/null || true
     docker exec "$GITLAB_CONTAINER" gitlab-ctl stop sidekiq 2>/dev/null || true
 
-    # Kiểm tra và xử lý database schema conflict
-    log_info "Kiểm tra database schema..."
-    if docker exec "$GITLAB_CONTAINER" gitlab-rails runner "puts User.count" >/dev/null 2>&1; then
-        log_info "Database schema hợp lệ, tiếp tục restore..."
+    # Bước 1: Kiểm tra backup file trong container và đảm bảo ownership đúng
+    log_info "Kiểm tra backup file trong container..."
+    if docker exec "$GITLAB_CONTAINER" test -f "/var/opt/gitlab/backups/$backup_file"; then
+        log_info "Backup file đã có trong container"
     else
-        log_warning "Database schema có vấn đề, sẽ reset database..."
-
-        # Dừng tất cả services
-        log_info "Dừng tất cả GitLab services..."
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl stop
-
-        # Reset database
-        log_info "Reset database..."
-        if docker exec postgres psql -U nextflow -d postgres -c "DROP DATABASE IF EXISTS nextflow_gitlab;" && \
-           docker exec postgres psql -U nextflow -d postgres -c "CREATE DATABASE nextflow_gitlab OWNER nextflow;"; then
-            log_success "Database đã được reset"
-        else
-            log_error "Không thể reset database"
-            exit 1
-        fi
-
-        # Khởi động lại GitLab
-        log_info "Khởi động lại GitLab..."
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl start
-
-        # Đợi GitLab sẵn sàng
-        log_info "Đợi GitLab khởi động..."
-        sleep 30
-
-        # Setup database schema
-        log_info "Setup database schema..."
-        if docker exec "$GITLAB_CONTAINER" gitlab-rake db:setup; then
-            log_success "Database schema đã được tạo"
-        else
-            log_warning "Có lỗi khi setup database, tiếp tục restore..."
-        fi
-
-        # Dừng lại Puma và Sidekiq để restore
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl stop puma 2>/dev/null || true
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl stop sidekiq 2>/dev/null || true
+        log_info "Copy backup file từ host vào container..."
+        docker cp "$BACKUP_DIR/$backup_file" "$GITLAB_CONTAINER:/var/opt/gitlab/backups/"
     fi
 
-    # Thực hiện restore với auto-confirm
-    log_info "Bắt đầu quá trình restore..."
-    if echo "yes" | docker exec -i "$GITLAB_CONTAINER" gitlab-backup restore BACKUP="$backup_timestamp" GITLAB_ASSUME_YES=1; then
+    # Đảm bảo ownership đúng (chạy trong container để tránh path conversion issues)
+    log_info "Đảm bảo ownership đúng..."
+    docker exec "$GITLAB_CONTAINER" sh -c "chown git:git /var/opt/gitlab/backups/$backup_file"
+
+    # Bước 2: Kiểm tra GitLab secrets (quan trọng!)
+    log_info "Kiểm tra GitLab secrets..."
+    if docker exec "$GITLAB_CONTAINER" test -f "/etc/gitlab/gitlab-secrets.json"; then
+        log_success "GitLab secrets tồn tại"
+    else
+        log_warning "Thiếu file gitlab-secrets.json!"
+        log_warning "Restore có thể thành công nhưng một số tính năng sẽ không hoạt động"
+        log_warning "Ví dụ: 2FA, CI/CD variables, encrypted data"
+        echo ""
+        read -p "Tiếp tục restore? (yes/no): " continue_without_secrets
+
+        if [ "$continue_without_secrets" != "yes" ]; then
+            log_info "Hủy restore. Hãy restore gitlab-secrets.json trước"
+            exit 0
+        fi
+
+        log_info "Tạo gitlab-secrets.json tạm thời..."
+        docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure
+    fi
+
+    # Bước 3: Reconfigure GitLab trước khi restore (theo tài liệu chính thức)
+    log_info "Reconfigure GitLab trước khi restore..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure
+
+    # Bước 4: Dừng các service kết nối database (theo tài liệu chính thức)
+    log_info "Dừng Puma và Sidekiq (giữ các service khác chạy)..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop puma
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl stop sidekiq
+
+    # Verify services đã dừng
+    log_info "Verify services đã dừng..."
+    docker exec "$GITLAB_CONTAINER" gitlab-ctl status
+
+    # Bước 5: Thực hiện restore với đúng tham số (không dùng echo "yes")
+    log_info "Bắt đầu quá trình restore (có thể mất vài phút)..."
+    if docker exec "$GITLAB_CONTAINER" gitlab-backup restore BACKUP="$backup_timestamp" GITLAB_ASSUME_YES=1; then
         log_success "Restore dữ liệu thành công!"
 
-        # Khởi động lại các service
-        log_info "Khởi động lại GitLab services..."
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl start puma
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl start sidekiq
-
-        # Reconfigure GitLab
-        log_info "Reconfigure GitLab..."
+        # Bước 6: Reconfigure sau restore (bắt buộc theo tài liệu)
+        log_info "Reconfigure GitLab sau restore..."
         docker exec "$GITLAB_CONTAINER" gitlab-ctl reconfigure
+
+        # Bước 7: Start tất cả services
+        log_info "Khởi động tất cả GitLab services..."
+        docker exec "$GITLAB_CONTAINER" gitlab-ctl start
 
         # Verify restore
         log_info "Kiểm tra kết quả restore..."
@@ -547,11 +1516,22 @@ restore_gitlab() {
         echo "Password: Nex!tFlow@2025!"
         echo ""
         log_info "GitLab sẽ sẵn sàng hoàn toàn trong 2-3 phút"
+
+        # Bước 8: Verify restore và check GitLab
+        log_info "Verify GitLab sau restore..."
+        docker exec "$GITLAB_CONTAINER" gitlab-rake gitlab:check SANITIZE=true
+
+        # Bước 9: Verify database values có thể decrypt
+        log_info "Verify database secrets..."
+        docker exec "$GITLAB_CONTAINER" gitlab-rake gitlab:doctor:secrets
+
     else
-        log_error "Restore thất bại"
-        log_info "Khởi động lại các service..."
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl start puma
-        docker exec "$GITLAB_CONTAINER" gitlab-ctl start sidekiq
+        log_error "Restore thất bại!"
+        log_info "Khởi động lại services để phục hồi trạng thái..."
+        docker exec "$GITLAB_CONTAINER" gitlab-ctl start
+
+        log_info "Kiểm tra logs để debug:"
+        log_info "docker exec gitlab tail -f /var/log/gitlab/gitlab-rails/production.log"
         exit 1
     fi
 }
@@ -699,7 +1679,7 @@ reset_root_password() {
 
     if [ "$user_count" -eq 0 ]; then
         log_error "Root user không tồn tại!"
-        log_info "Vui lòng tạo root user trước: ./scripts/gitlab-manager-new.sh create-root"
+        log_info "Vui lòng tạo root user trước: ./scripts/gitlab-manager.sh create-root"
         return 1
     fi
 
@@ -829,19 +1809,28 @@ EOF"
 # Menu chính
 show_menu() {
     echo ""
-    echo "=== GITLAB MANAGER - SIMPLE VERSION ==="
+    echo "=== GITLAB MANAGER - ENHANCED VERSION ==="
     echo ""
     echo "1. [CHECK] Kiểm tra GitLab images"
     echo "2. [BUILD] Build GitLab custom image"
     echo "3. [INSTALL] Cài đặt GitLab"
     echo "4. [INFO] Xem thông tin truy cập"
-    echo "5. [BACKUP] Sao lưu GitLab"
-    echo "6. [RESTORE] Khôi phục GitLab từ backup"
+    echo "5. [BACKUP] Sao lưu GitLab hoàn chỉnh"
+    echo "6. [RESTORE-FULL] Khôi phục GitLab từ full backup"
     echo "7. [CREATE-ROOT] Tạo/quản lý root user"
     echo "8. [RESET-ROOT] Reset password root user"
     echo "9. [CONFIG] Cấu hình password policy đơn giản"
     echo "10. [RECONFIGURE] Reconfigure GitLab"
-    echo "11. Thoát"
+    echo "11. [CHECK-DB] Kiểm tra và migrate database"
+    echo "12. [MIGRATE] Force migrate database"
+    echo "13. [RESET-DB] Reset database (XÓA TOÀN BỘ DỮ LIỆU)"
+    echo "14. [CHECK-READY] Kiểm tra GitLab readiness"
+    echo "15. [FIX-422] Fix lỗi 422 'The change you requested was rejected'"
+    echo "16. Thoát"
+    echo ""
+    echo "💡 Backup bao gồm: data + secrets + config + certificates"
+    echo "⚠️  Database functions: Sử dụng khi GitLab có vấn đề"
+    echo "🔧 Fix functions: Sử dụng khi gặp lỗi đăng nhập"
     echo ""
 }
 
@@ -849,10 +1838,6 @@ show_menu() {
 case "${1:-}" in
     "check"|"images")
         check_docker
-        check_images
-        ;;
-    "test-check")
-        # Test check images mà không cần Docker chạy
         check_images
         ;;
     "build")
@@ -870,9 +1855,18 @@ case "${1:-}" in
         check_docker
         backup_gitlab
         ;;
+    "restore-full")
+        check_docker
+        restore_full_gitlab "$2"
+        ;;
     "restore")
         check_docker
-        restore_gitlab
+        log_warning "⚠️  Command 'restore' is deprecated!"
+        log_info "💡 Please use 'restore-full' for complete restore with secrets and config"
+        echo ""
+        echo "Usage: $0 restore-full /path/to/backup/directory"
+        echo ""
+        exit 1
         ;;
     "create-root")
         check_docker
@@ -890,12 +1884,37 @@ case "${1:-}" in
         check_docker
         reconfigure_gitlab
         ;;
+    "check-db")
+        check_docker
+        check_and_migrate_database
+        ;;
+    "check-ready")
+        check_docker
+        if check_gitlab_readiness; then
+            log_success "🎉 GitLab sẵn sàng!"
+        else
+            log_warning "⚠️  GitLab chưa sẵn sàng"
+            exit 1
+        fi
+        ;;
+    "migrate")
+        check_docker
+        migrate_gitlab_database
+        ;;
+    "reset-db")
+        check_docker
+        reset_gitlab_database
+        ;;
+    "fix-422")
+        check_docker
+        fix_422_error
+        ;;
     "")
         # Menu tương tác
         while true; do
             show_menu
-            read -p "Chọn chức năng (1-11): " choice
-            
+            read -p "Chọn chức năng (1-16): " choice
+
             case $choice in
                 1)
                     check_docker
@@ -918,7 +1937,9 @@ case "${1:-}" in
                     ;;
                 6)
                     check_docker
-                    restore_gitlab
+                    echo ""
+                    read -p "Nhập đường dẫn backup directory: " backup_path
+                    restore_full_gitlab "$backup_path"
                     ;;
                 7)
                     check_docker
@@ -937,6 +1958,30 @@ case "${1:-}" in
                     reconfigure_gitlab
                     ;;
                 11)
+                    check_docker
+                    check_and_migrate_database
+                    ;;
+                12)
+                    check_docker
+                    migrate_gitlab_database
+                    ;;
+                13)
+                    check_docker
+                    reset_gitlab_database
+                    ;;
+                14)
+                    check_docker
+                    if check_gitlab_readiness; then
+                        log_success "🎉 GitLab sẵn sàng!"
+                    else
+                        log_warning "⚠️  GitLab chưa sẵn sàng"
+                    fi
+                    ;;
+                15)
+                    check_docker
+                    fix_422_error
+                    ;;
+                16)
                     log_info "Thoát chương trình"
                     exit 0
                     ;;
@@ -950,8 +1995,30 @@ case "${1:-}" in
         done
         ;;
     *)
-        echo "Sử dụng: $0 [check|build|install|info|backup|restore|create-root|reset-root|config|reconfigure]"
-        echo "Hoặc chạy không tham số để vào menu tương tác"
+        echo "Sử dụng: $0 [command] [options]"
+        echo ""
+        echo "Commands:"
+        echo "  check                    - Kiểm tra GitLab images"
+        echo "  build                    - Build GitLab custom image"
+        echo "  install                  - Cài đặt GitLab"
+        echo "  info                     - Xem thông tin truy cập"
+        echo "  backup                   - Sao lưu GitLab hoàn chỉnh"
+        echo "  restore-full <path>      - Khôi phục GitLab từ full backup"
+        echo "  create-root              - Tạo/quản lý root user"
+        echo "  reset-root               - Reset password root user"
+        echo "  config                   - Cấu hình password policy"
+        echo "  reconfigure              - Reconfigure GitLab"
+        echo "  check-db                 - Kiểm tra và migrate database"
+        echo "  migrate                  - Force migrate database"
+        echo "  reset-db                 - Reset database (XÓA TOÀN BỘ)"
+        echo "  check-ready              - Kiểm tra GitLab readiness"
+        echo "  fix-422                  - Fix lỗi 422 'The change you requested was rejected'"
+        echo ""
+        echo "Examples:"
+        echo "  $0                                    # Menu tương tác"
+        echo "  $0 backup                            # Tạo full backup"
+        echo "  $0 restore-full /path/to/backup      # Restore từ full backup"
+        echo ""
         exit 1
         ;;
 esac
