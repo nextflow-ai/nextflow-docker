@@ -34,53 +34,53 @@ Bảng `api_resources` lưu trữ thông tin về các tài nguyên API được
 
 ### 2.2. Cấu trúc
 
-| Tên cột                 | Kiểu dữ liệu | Nullable | Mặc định          | Mô tả                                             |
-| ----------------------- | ------------ | -------- | ----------------- | ------------------------------------------------- |
-| id                      | uuid         | false    | gen_random_uuid() | Khóa chính, định danh duy nhất của tài nguyên API |
-| name                    | varchar(100) | false    |                   | Tên tài nguyên API                                |
-| code                    | varchar(100) | false    |                   | Mã tài nguyên API                                 |
-| description             | text         | true     | null              | Mô tả tài nguyên API                              |
-| version                 | varchar(20)  | false    | 'v1'              | Phiên bản API                                     |
-| path                    | varchar(255) | false    |                   | Đường dẫn API                                     |
-| http_method             | varchar(10)  | false    |                   | Phương thức HTTP: GET, POST, PUT, PATCH, DELETE   |
-| controller              | varchar(100) | true     | null              | Controller xử lý                                  |
-| action                  | varchar(100) | true     | null              | Action xử lý                                      |
-| request_schema          | jsonb        | true     | null              | Schema của request                                |
-| response_schema         | jsonb        | true     | null              | Schema của response                               |
-| category                | varchar(50)  | true     | null              | Danh mục API: customer, order, product, etc.      |
-| is_public               | boolean      | false    | false             | Đánh dấu là API công khai                         |
-| is_deprecated           | boolean      | false    | false             | Đánh dấu là API đã lỗi thời                       |
-| deprecated_since        | varchar(20)  | true     | null              | Phiên bản bắt đầu lỗi thời                        |
-| deprecated_message      | text         | true     | null              | Thông báo lỗi thời                                |
-| rate_limit              | integer      | true     | null              | Giới hạn số lượng request (requests/minute)       |
-| requires_authentication | boolean      | false    | true              | Yêu cầu xác thực                                  |
-| created_at              | timestamp    | false    | now()             | Thời gian tạo bản ghi                             |
-| updated_at              | timestamp    | false    | now()             | Thời gian cập nhật bản ghi                        |
-| deleted_at              | timestamp    | true     | null              | Thời gian xóa bản ghi (soft delete)               |
-| created_by              | uuid         | true     | null              | ID người tạo                                      |
-| updated_by              | uuid         | true     | null              | ID người cập nhật                                 |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính, định danh duy nhất của tài nguyên API |
+| name | varchar(100) | false | | Tên tài nguyên API |
+| code | varchar(100) | false | | Mã tài nguyên API |
+| description | text | true | null | Mô tả tài nguyên API |
+| version | varchar(20) | false | 'v1' | Phiên bản API |
+| path | varchar(255) | false | | Đường dẫn API |
+| http_method | varchar(10) | false | | Phương thức HTTP: GET, POST, PUT, PATCH, DELETE |
+| controller | varchar(100) | true | null | Controller xử lý |
+| action | varchar(100) | true | null | Action xử lý |
+| request_schema | jsonb | true | null | Schema của request |
+| response_schema | jsonb | true | null | Schema của response |
+| category | varchar(50) | true | null | Danh mục API: customer, order, product, etc. |
+| is_public | boolean | false | false | Đánh dấu là API công khai |
+| is_deprecated | boolean | false | false | Đánh dấu là API đã lỗi thời |
+| deprecated_since | varchar(20) | true | null | Phiên bản bắt đầu lỗi thời |
+| deprecated_message | text | true | null | Thông báo lỗi thời |
+| rate_limit | integer | true | null | Giới hạn số lượng request (requests/minute) |
+| requires_authentication | boolean | false | true | Yêu cầu xác thực |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| deleted_at | timestamp | true | null | Thời gian xóa bản ghi (soft delete) |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 2.3. Chỉ mục
 
-| Tên chỉ mục                               | Loại        | Cột                        | Mô tả                                                                |
-| ----------------------------------------- | ----------- | -------------------------- | -------------------------------------------------------------------- |
-| api_resources_pkey                        | PRIMARY KEY | id                         | Khóa chính                                                           |
-| api_resources_code_version_idx            | UNIQUE      | code, version              | Đảm bảo mã tài nguyên API là duy nhất trong mỗi phiên bản            |
-| api_resources_path_method_version_idx     | UNIQUE      | path, http_method, version | Đảm bảo đường dẫn API là duy nhất trong mỗi phiên bản và phương thức |
-| api_resources_category_idx                | INDEX       | category                   | Tăng tốc truy vấn theo danh mục                                      |
-| api_resources_is_public_idx               | INDEX       | is_public                  | Tăng tốc truy vấn theo API công khai                                 |
-| api_resources_is_deprecated_idx           | INDEX       | is_deprecated              | Tăng tốc truy vấn theo API lỗi thời                                  |
-| api_resources_requires_authentication_idx | INDEX       | requires_authentication    | Tăng tốc truy vấn theo yêu cầu xác thực                              |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| api_resources_pkey | PRIMARY KEY | id | Khóa chính |
+| api_resources_code_version_idx | UNIQUE | code, version | Đảm bảo mã tài nguyên API là duy nhất trong mỗi phiên bản |
+| api_resources_path_method_version_idx | UNIQUE | path, http_method, version | Đảm bảo đường dẫn API là duy nhất trong mỗi phiên bản và phương thức |
+| api_resources_category_idx | INDEX | category | Tăng tốc truy vấn theo danh mục |
+| api_resources_is_public_idx | INDEX | is_public | Tăng tốc truy vấn theo API công khai |
+| api_resources_is_deprecated_idx | INDEX | is_deprecated | Tăng tốc truy vấn theo API lỗi thời |
+| api_resources_requires_authentication_idx | INDEX | requires_authentication | Tăng tốc truy vấn theo yêu cầu xác thực |
 
 ### 2.4. Ràng buộc
 
-| Tên ràng buộc                   | Loại        | Mô tả                                             |
-| ------------------------------- | ----------- | ------------------------------------------------- |
-| api_resources_created_by_fkey   | FOREIGN KEY | Tham chiếu đến bảng users(id)                     |
-| api_resources_updated_by_fkey   | FOREIGN KEY | Tham chiếu đến bảng users(id)                     |
-| api_resources_http_method_check | CHECK       | Đảm bảo http_method chỉ nhận các giá trị cho phép |
-| api_resources_category_check    | CHECK       | Đảm bảo category chỉ nhận các giá trị cho phép    |
-| api_resources_rate_limit_check  | CHECK       | Đảm bảo rate_limit > 0 khi không null             |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| api_resources_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| api_resources_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| api_resources_http_method_check | CHECK | Đảm bảo http_method chỉ nhận các giá trị cho phép |
+| api_resources_category_check | CHECK | Đảm bảo category chỉ nhận các giá trị cho phép |
+| api_resources_rate_limit_check | CHECK | Đảm bảo rate_limit > 0 khi không null |
 
 ### 2.5. Ví dụ JSON
 
@@ -232,56 +232,56 @@ Bảng `api_keys` lưu trữ thông tin về các khóa API được cấp trong
 
 ### 3.2. Cấu trúc
 
-| Tên cột         | Kiểu dữ liệu | Nullable | Mặc định          | Mô tả                                       |
-| --------------- | ------------ | -------- | ----------------- | ------------------------------------------- |
-| id              | uuid         | false    | gen_random_uuid() | Khóa chính                                  |
-| organization_id | uuid         | false    |                   | Khóa ngoại tới bảng organizations           |
-| user_id         | uuid         | true     | null              | Khóa ngoại tới bảng users                   |
-| name            | varchar(100) | false    |                   | Tên khóa API                                |
-| description     | text         | true     | null              | Mô tả khóa API                              |
-| key             | varchar(255) | false    |                   | Khóa API (được mã hóa)                      |
-| secret          | varchar(255) | true     | null              | Bí mật API (được mã hóa)                    |
-| type            | varchar(20)  | false    | 'client'          | Loại khóa: client, server, admin            |
-| status          | varchar(20)  | false    | 'active'          | Trạng thái: active, inactive, revoked       |
-| expires_at      | timestamp    | true     | null              | Thời gian hết hạn                           |
-| last_used_at    | timestamp    | true     | null              | Thời gian sử dụng gần nhất                  |
-| usage_count     | integer      | false    | 0                 | Số lần sử dụng                              |
-| ip_restrictions | jsonb        | true     | null              | Giới hạn địa chỉ IP                         |
-| rate_limit      | integer      | true     | null              | Giới hạn số lượng request (requests/minute) |
-| quota           | integer      | true     | null              | Hạn ngạch sử dụng (requests/month)          |
-| quota_reset_at  | timestamp    | true     | null              | Thời gian reset hạn ngạch                   |
-| created_at      | timestamp    | false    | now()             | Thời gian tạo bản ghi                       |
-| updated_at      | timestamp    | false    | now()             | Thời gian cập nhật bản ghi                  |
-| deleted_at      | timestamp    | true     | null              | Thời gian xóa bản ghi (soft delete)         |
-| created_by      | uuid         | true     | null              | ID người tạo                                |
-| updated_by      | uuid         | true     | null              | ID người cập nhật                           |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính |
+| organization_id | uuid | false | | Khóa ngoại tới bảng organizations |
+| user_id | uuid | true | null | Khóa ngoại tới bảng users |
+| name | varchar(100) | false | | Tên khóa API |
+| description | text | true | null | Mô tả khóa API |
+| key | varchar(255) | false | | Khóa API (được mã hóa) |
+| secret | varchar(255) | true | null | Bí mật API (được mã hóa) |
+| type | varchar(20) | false | 'client' | Loại khóa: client, server, admin |
+| status | varchar(20) | false | 'active' | Trạng thái: active, inactive, revoked |
+| expires_at | timestamp | true | null | Thời gian hết hạn |
+| last_used_at | timestamp | true | null | Thời gian sử dụng gần nhất |
+| usage_count | integer | false | 0 | Số lần sử dụng |
+| ip_restrictions | jsonb | true | null | Giới hạn địa chỉ IP |
+| rate_limit | integer | true | null | Giới hạn số lượng request (requests/minute) |
+| quota | integer | true | null | Hạn ngạch sử dụng (requests/month) |
+| quota_reset_at | timestamp | true | null | Thời gian reset hạn ngạch |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| deleted_at | timestamp | true | null | Thời gian xóa bản ghi (soft delete) |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 3.3. Chỉ mục
 
-| Tên chỉ mục                  | Loại        | Cột             | Mô tả                                             |
-| ---------------------------- | ----------- | --------------- | ------------------------------------------------- |
-| api_keys_pkey                | PRIMARY KEY | id              | Khóa chính                                        |
-| api_keys_key_idx             | UNIQUE      | key             | Đảm bảo khóa API là duy nhất                      |
-| api_keys_organization_id_idx | INDEX       | organization_id | Tăng tốc truy vấn theo tổ chức                    |
-| api_keys_user_id_idx         | INDEX       | user_id         | Tăng tốc truy vấn theo người dùng                 |
-| api_keys_type_idx            | INDEX       | type            | Tăng tốc truy vấn theo loại khóa                  |
-| api_keys_status_idx          | INDEX       | status          | Tăng tốc truy vấn theo trạng thái                 |
-| api_keys_expires_at_idx      | INDEX       | expires_at      | Tăng tốc truy vấn theo thời gian hết hạn          |
-| api_keys_last_used_at_idx    | INDEX       | last_used_at    | Tăng tốc truy vấn theo thời gian sử dụng gần nhất |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| api_keys_pkey | PRIMARY KEY | id | Khóa chính |
+| api_keys_key_idx | UNIQUE | key | Đảm bảo khóa API là duy nhất |
+| api_keys_organization_id_idx | INDEX | organization_id | Tăng tốc truy vấn theo tổ chức |
+| api_keys_user_id_idx | INDEX | user_id | Tăng tốc truy vấn theo người dùng |
+| api_keys_type_idx | INDEX | type | Tăng tốc truy vấn theo loại khóa |
+| api_keys_status_idx | INDEX | status | Tăng tốc truy vấn theo trạng thái |
+| api_keys_expires_at_idx | INDEX | expires_at | Tăng tốc truy vấn theo thời gian hết hạn |
+| api_keys_last_used_at_idx | INDEX | last_used_at | Tăng tốc truy vấn theo thời gian sử dụng gần nhất |
 
 ### 3.4. Ràng buộc
 
-| Tên ràng buộc                 | Loại        | Mô tả                                        |
-| ----------------------------- | ----------- | -------------------------------------------- |
-| api_keys_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id)        |
-| api_keys_user_id_fkey         | FOREIGN KEY | Tham chiếu đến bảng users(id)                |
-| api_keys_created_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                |
-| api_keys_updated_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                |
-| api_keys_type_check           | CHECK       | Đảm bảo type chỉ nhận các giá trị cho phép   |
-| api_keys_status_check         | CHECK       | Đảm bảo status chỉ nhận các giá trị cho phép |
-| api_keys_usage_count_check    | CHECK       | Đảm bảo usage_count >= 0                     |
-| api_keys_rate_limit_check     | CHECK       | Đảm bảo rate_limit > 0 khi không null        |
-| api_keys_quota_check          | CHECK       | Đảm bảo quota > 0 khi không null             |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| api_keys_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id) |
+| api_keys_user_id_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| api_keys_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| api_keys_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| api_keys_type_check | CHECK | Đảm bảo type chỉ nhận các giá trị cho phép |
+| api_keys_status_check | CHECK | Đảm bảo status chỉ nhận các giá trị cho phép |
+| api_keys_usage_count_check | CHECK | Đảm bảo usage_count >= 0 |
+| api_keys_rate_limit_check | CHECK | Đảm bảo rate_limit > 0 khi không null |
+| api_keys_quota_check | CHECK | Đảm bảo quota > 0 khi không null |
 
 ### 3.5. Ví dụ JSON
 
@@ -299,7 +299,10 @@ Bảng `api_keys` lưu trữ thông tin về các khóa API được cấp trong
   "expires_at": "2024-12-31T23:59:59Z",
   "last_used_at": "2023-07-15T10:30:00Z",
   "usage_count": 1250,
-  "ip_restrictions": ["203.0.113.0/24", "198.51.100.0/24"],
+  "ip_restrictions": [
+    "203.0.113.0/24",
+    "198.51.100.0/24"
+  ],
   "rate_limit": 100,
   "quota": 100000,
   "quota_reset_at": "2023-08-01T00:00:00Z",
@@ -319,43 +322,43 @@ Bảng `api_permissions` lưu trữ thông tin về quyền truy cập API trong
 
 ### 4.2. Cấu trúc
 
-| Tên cột          | Kiểu dữ liệu | Nullable | Mặc định          | Mô tả                        |
-| ---------------- | ------------ | -------- | ----------------- | ---------------------------- |
-| id               | uuid         | false    | gen_random_uuid() | Khóa chính                   |
-| api_key_id       | uuid         | false    |                   | Khóa ngoại tới bảng api_keys |
-| resource_code    | varchar(100) | true     | null              | Mã tài nguyên API            |
-| resource_pattern | varchar(255) | true     | null              | Mẫu tài nguyên API (regex)   |
-| http_method      | varchar(10)  | true     | null              | Phương thức HTTP             |
-| action           | varchar(20)  | false    |                   | Hành động: allow, deny       |
-| conditions       | jsonb        | true     | null              | Điều kiện áp dụng            |
-| priority         | integer      | false    | 0                 | Độ ưu tiên                   |
-| created_at       | timestamp    | false    | now()             | Thời gian tạo bản ghi        |
-| updated_at       | timestamp    | false    | now()             | Thời gian cập nhật bản ghi   |
-| created_by       | uuid         | true     | null              | ID người tạo                 |
-| updated_by       | uuid         | true     | null              | ID người cập nhật            |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính |
+| api_key_id | uuid | false | | Khóa ngoại tới bảng api_keys |
+| resource_code | varchar(100) | true | null | Mã tài nguyên API |
+| resource_pattern | varchar(255) | true | null | Mẫu tài nguyên API (regex) |
+| http_method | varchar(10) | true | null | Phương thức HTTP |
+| action | varchar(20) | false | | Hành động: allow, deny |
+| conditions | jsonb | true | null | Điều kiện áp dụng |
+| priority | integer | false | 0 | Độ ưu tiên |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 4.3. Chỉ mục
 
-| Tên chỉ mục                                 | Loại        | Cột                                    | Mô tả                                                                              |
-| ------------------------------------------- | ----------- | -------------------------------------- | ---------------------------------------------------------------------------------- |
-| api_permissions_pkey                        | PRIMARY KEY | id                                     | Khóa chính                                                                         |
-| api_permissions_api_key_resource_method_idx | UNIQUE      | api_key_id, resource_code, http_method | Đảm bảo quyền truy cập API là duy nhất cho mỗi khóa API, tài nguyên và phương thức |
-| api_permissions_api_key_id_idx              | INDEX       | api_key_id                             | Tăng tốc truy vấn theo khóa API                                                    |
-| api_permissions_resource_code_idx           | INDEX       | resource_code                          | Tăng tốc truy vấn theo mã tài nguyên                                               |
-| api_permissions_http_method_idx             | INDEX       | http_method                            | Tăng tốc truy vấn theo phương thức HTTP                                            |
-| api_permissions_action_idx                  | INDEX       | action                                 | Tăng tốc truy vấn theo hành động                                                   |
-| api_permissions_priority_idx                | INDEX       | priority                               | Tăng tốc truy vấn theo độ ưu tiên                                                  |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| api_permissions_pkey | PRIMARY KEY | id | Khóa chính |
+| api_permissions_api_key_resource_method_idx | UNIQUE | api_key_id, resource_code, http_method | Đảm bảo quyền truy cập API là duy nhất cho mỗi khóa API, tài nguyên và phương thức |
+| api_permissions_api_key_id_idx | INDEX | api_key_id | Tăng tốc truy vấn theo khóa API |
+| api_permissions_resource_code_idx | INDEX | resource_code | Tăng tốc truy vấn theo mã tài nguyên |
+| api_permissions_http_method_idx | INDEX | http_method | Tăng tốc truy vấn theo phương thức HTTP |
+| api_permissions_action_idx | INDEX | action | Tăng tốc truy vấn theo hành động |
+| api_permissions_priority_idx | INDEX | priority | Tăng tốc truy vấn theo độ ưu tiên |
 
 ### 4.4. Ràng buộc
 
-| Tên ràng buộc                     | Loại        | Mô tả                                                       |
-| --------------------------------- | ----------- | ----------------------------------------------------------- |
-| api_permissions_api_key_id_fkey   | FOREIGN KEY | Tham chiếu đến bảng api_keys(id)                            |
-| api_permissions_created_by_fkey   | FOREIGN KEY | Tham chiếu đến bảng users(id)                               |
-| api_permissions_updated_by_fkey   | FOREIGN KEY | Tham chiếu đến bảng users(id)                               |
-| api_permissions_http_method_check | CHECK       | Đảm bảo http_method chỉ nhận các giá trị cho phép           |
-| api_permissions_action_check      | CHECK       | Đảm bảo action chỉ nhận các giá trị cho phép                |
-| api_permissions_resource_check    | CHECK       | Đảm bảo resource_code hoặc resource_pattern phải có giá trị |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| api_permissions_api_key_id_fkey | FOREIGN KEY | Tham chiếu đến bảng api_keys(id) |
+| api_permissions_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| api_permissions_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| api_permissions_http_method_check | CHECK | Đảm bảo http_method chỉ nhận các giá trị cho phép |
+| api_permissions_action_check | CHECK | Đảm bảo action chỉ nhận các giá trị cho phép |
+| api_permissions_resource_check | CHECK | Đảm bảo resource_code hoặc resource_pattern phải có giá trị |
 
 ### 4.5. Ví dụ JSON
 

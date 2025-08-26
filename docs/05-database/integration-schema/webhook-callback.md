@@ -33,58 +33,58 @@ Bảng `webhooks` lưu trữ thông tin cấu hình webhook trong hệ thống.
 
 ### 2.2. Cấu trúc
 
-| Tên cột             | Kiểu dữ liệu | Nullable | Mặc định           | Mô tả                                                      |
-| ------------------- | ------------ | -------- | ------------------ | ---------------------------------------------------------- |
-| id                  | uuid         | false    | gen_random_uuid()  | Khóa chính, định danh duy nhất của webhook                 |
-| organization_id     | uuid         | false    |                    | Khóa ngoại tới bảng organizations, xác định tổ chức sở hữu |
-| name                | varchar(100) | false    |                    | Tên webhook                                                |
-| description         | text         | true     | null               | Mô tả webhook                                              |
-| url                 | varchar(255) | false    |                    | URL endpoint của webhook                                   |
-| http_method         | varchar(10)  | false    | 'POST'             | Phương thức HTTP: GET, POST, PUT, PATCH, DELETE            |
-| content_type        | varchar(100) | false    | 'application/json' | Kiểu nội dung: application/json, application/xml, etc.     |
-| headers             | jsonb        | true     | null               | Headers HTTP bổ sung                                       |
-| events              | jsonb        | false    |                    | Danh sách sự kiện kích hoạt webhook                        |
-| payload_template    | text         | true     | null               | Mẫu nội dung gửi đi                                        |
-| secret              | varchar(255) | true     | null               | Khóa bí mật để xác thực webhook (được mã hóa)              |
-| signature_algorithm | varchar(20)  | true     | 'sha256'           | Thuật toán chữ ký: sha256, sha512, etc.                    |
-| status              | varchar(20)  | false    | 'active'           | Trạng thái: active, inactive, error                        |
-| is_system           | boolean      | false    | false              | Đánh dấu là webhook hệ thống                               |
-| retry_limit         | integer      | false    | 3                  | Số lần thử lại tối đa                                      |
-| retry_interval      | integer      | false    | 60                 | Khoảng thời gian giữa các lần thử lại (giây)               |
-| timeout             | integer      | false    | 30                 | Thời gian chờ phản hồi (giây)                              |
-| last_triggered_at   | timestamp    | true     | null               | Thời gian kích hoạt gần nhất                               |
-| last_success_at     | timestamp    | true     | null               | Thời gian thành công gần nhất                              |
-| last_failure_at     | timestamp    | true     | null               | Thời gian thất bại gần nhất                                |
-| failure_count       | integer      | false    | 0                  | Số lần thất bại liên tiếp                                  |
-| created_at          | timestamp    | false    | now()              | Thời gian tạo bản ghi                                      |
-| updated_at          | timestamp    | false    | now()              | Thời gian cập nhật bản ghi                                 |
-| deleted_at          | timestamp    | true     | null               | Thời gian xóa bản ghi (soft delete)                        |
-| created_by          | uuid         | true     | null               | ID người tạo                                               |
-| updated_by          | uuid         | true     | null               | ID người cập nhật                                          |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính, định danh duy nhất của webhook |
+| organization_id | uuid | false | | Khóa ngoại tới bảng organizations, xác định tổ chức sở hữu |
+| name | varchar(100) | false | | Tên webhook |
+| description | text | true | null | Mô tả webhook |
+| url | varchar(255) | false | | URL endpoint của webhook |
+| http_method | varchar(10) | false | 'POST' | Phương thức HTTP: GET, POST, PUT, PATCH, DELETE |
+| content_type | varchar(100) | false | 'application/json' | Kiểu nội dung: application/json, application/xml, etc. |
+| headers | jsonb | true | null | Headers HTTP bổ sung |
+| events | jsonb | false | | Danh sách sự kiện kích hoạt webhook |
+| payload_template | text | true | null | Mẫu nội dung gửi đi |
+| secret | varchar(255) | true | null | Khóa bí mật để xác thực webhook (được mã hóa) |
+| signature_algorithm | varchar(20) | true | 'sha256' | Thuật toán chữ ký: sha256, sha512, etc. |
+| status | varchar(20) | false | 'active' | Trạng thái: active, inactive, error |
+| is_system | boolean | false | false | Đánh dấu là webhook hệ thống |
+| retry_limit | integer | false | 3 | Số lần thử lại tối đa |
+| retry_interval | integer | false | 60 | Khoảng thời gian giữa các lần thử lại (giây) |
+| timeout | integer | false | 30 | Thời gian chờ phản hồi (giây) |
+| last_triggered_at | timestamp | true | null | Thời gian kích hoạt gần nhất |
+| last_success_at | timestamp | true | null | Thời gian thành công gần nhất |
+| last_failure_at | timestamp | true | null | Thời gian thất bại gần nhất |
+| failure_count | integer | false | 0 | Số lần thất bại liên tiếp |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| deleted_at | timestamp | true | null | Thời gian xóa bản ghi (soft delete) |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 2.3. Chỉ mục
 
-| Tên chỉ mục                    | Loại        | Cột                   | Mô tả                                               |
-| ------------------------------ | ----------- | --------------------- | --------------------------------------------------- |
-| webhooks_pkey                  | PRIMARY KEY | id                    | Khóa chính                                          |
-| webhooks_organization_name_idx | UNIQUE      | organization_id, name | Đảm bảo tên webhook là duy nhất trong tổ chức       |
-| webhooks_organization_id_idx   | INDEX       | organization_id       | Tăng tốc truy vấn theo tổ chức                      |
-| webhooks_status_idx            | INDEX       | status                | Tăng tốc truy vấn theo trạng thái                   |
-| webhooks_is_system_idx         | INDEX       | is_system             | Tăng tốc truy vấn theo webhook hệ thống             |
-| webhooks_last_triggered_at_idx | INDEX       | last_triggered_at     | Tăng tốc truy vấn theo thời gian kích hoạt gần nhất |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| webhooks_pkey | PRIMARY KEY | id | Khóa chính |
+| webhooks_organization_name_idx | UNIQUE | organization_id, name | Đảm bảo tên webhook là duy nhất trong tổ chức |
+| webhooks_organization_id_idx | INDEX | organization_id | Tăng tốc truy vấn theo tổ chức |
+| webhooks_status_idx | INDEX | status | Tăng tốc truy vấn theo trạng thái |
+| webhooks_is_system_idx | INDEX | is_system | Tăng tốc truy vấn theo webhook hệ thống |
+| webhooks_last_triggered_at_idx | INDEX | last_triggered_at | Tăng tốc truy vấn theo thời gian kích hoạt gần nhất |
 
 ### 2.4. Ràng buộc
 
-| Tên ràng buộc                 | Loại        | Mô tả                                             |
-| ----------------------------- | ----------- | ------------------------------------------------- |
-| webhooks_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id)             |
-| webhooks_created_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                     |
-| webhooks_updated_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                     |
-| webhooks_http_method_check    | CHECK       | Đảm bảo http_method chỉ nhận các giá trị cho phép |
-| webhooks_status_check         | CHECK       | Đảm bảo status chỉ nhận các giá trị cho phép      |
-| webhooks_retry_limit_check    | CHECK       | Đảm bảo retry_limit >= 0                          |
-| webhooks_retry_interval_check | CHECK       | Đảm bảo retry_interval > 0                        |
-| webhooks_timeout_check        | CHECK       | Đảm bảo timeout > 0                               |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| webhooks_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id) |
+| webhooks_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| webhooks_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| webhooks_http_method_check | CHECK | Đảm bảo http_method chỉ nhận các giá trị cho phép |
+| webhooks_status_check | CHECK | Đảm bảo status chỉ nhận các giá trị cho phép |
+| webhooks_retry_limit_check | CHECK | Đảm bảo retry_limit >= 0 |
+| webhooks_retry_interval_check | CHECK | Đảm bảo retry_interval > 0 |
+| webhooks_timeout_check | CHECK | Đảm bảo timeout > 0 |
 
 ### 2.5. Ví dụ JSON
 
@@ -130,42 +130,42 @@ Bảng `webhook_events` lưu trữ thông tin về các sự kiện kích hoạt
 
 ### 3.2. Cấu trúc
 
-| Tên cột         | Kiểu dữ liệu | Nullable | Mặc định          | Mô tả                                            |
-| --------------- | ------------ | -------- | ----------------- | ------------------------------------------------ |
-| id              | uuid         | false    | gen_random_uuid() | Khóa chính                                       |
-| organization_id | uuid         | false    |                   | Khóa ngoại tới bảng organizations                |
-| name            | varchar(100) | false    |                   | Tên sự kiện                                      |
-| code            | varchar(100) | false    |                   | Mã sự kiện                                       |
-| description     | text         | true     | null              | Mô tả sự kiện                                    |
-| category        | varchar(50)  | true     | null              | Danh mục sự kiện: order, customer, product, etc. |
-| payload_schema  | jsonb        | true     | null              | Schema của dữ liệu sự kiện                       |
-| is_system       | boolean      | false    | false             | Đánh dấu là sự kiện hệ thống                     |
-| is_active       | boolean      | false    | true              | Trạng thái kích hoạt                             |
-| created_at      | timestamp    | false    | now()             | Thời gian tạo bản ghi                            |
-| updated_at      | timestamp    | false    | now()             | Thời gian cập nhật bản ghi                       |
-| deleted_at      | timestamp    | true     | null              | Thời gian xóa bản ghi (soft delete)              |
-| created_by      | uuid         | true     | null              | ID người tạo                                     |
-| updated_by      | uuid         | true     | null              | ID người cập nhật                                |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính |
+| organization_id | uuid | false | | Khóa ngoại tới bảng organizations |
+| name | varchar(100) | false | | Tên sự kiện |
+| code | varchar(100) | false | | Mã sự kiện |
+| description | text | true | null | Mô tả sự kiện |
+| category | varchar(50) | true | null | Danh mục sự kiện: order, customer, product, etc. |
+| payload_schema | jsonb | true | null | Schema của dữ liệu sự kiện |
+| is_system | boolean | false | false | Đánh dấu là sự kiện hệ thống |
+| is_active | boolean | false | true | Trạng thái kích hoạt |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| deleted_at | timestamp | true | null | Thời gian xóa bản ghi (soft delete) |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 3.3. Chỉ mục
 
-| Tên chỉ mục                          | Loại        | Cột                   | Mô tả                                        |
-| ------------------------------------ | ----------- | --------------------- | -------------------------------------------- |
-| webhook_events_pkey                  | PRIMARY KEY | id                    | Khóa chính                                   |
-| webhook_events_organization_code_idx | UNIQUE      | organization_id, code | Đảm bảo mã sự kiện là duy nhất trong tổ chức |
-| webhook_events_organization_id_idx   | INDEX       | organization_id       | Tăng tốc truy vấn theo tổ chức               |
-| webhook_events_category_idx          | INDEX       | category              | Tăng tốc truy vấn theo danh mục              |
-| webhook_events_is_system_idx         | INDEX       | is_system             | Tăng tốc truy vấn theo sự kiện hệ thống      |
-| webhook_events_is_active_idx         | INDEX       | is_active             | Tăng tốc truy vấn theo trạng thái kích hoạt  |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| webhook_events_pkey | PRIMARY KEY | id | Khóa chính |
+| webhook_events_organization_code_idx | UNIQUE | organization_id, code | Đảm bảo mã sự kiện là duy nhất trong tổ chức |
+| webhook_events_organization_id_idx | INDEX | organization_id | Tăng tốc truy vấn theo tổ chức |
+| webhook_events_category_idx | INDEX | category | Tăng tốc truy vấn theo danh mục |
+| webhook_events_is_system_idx | INDEX | is_system | Tăng tốc truy vấn theo sự kiện hệ thống |
+| webhook_events_is_active_idx | INDEX | is_active | Tăng tốc truy vấn theo trạng thái kích hoạt |
 
 ### 3.4. Ràng buộc
 
-| Tên ràng buộc                       | Loại        | Mô tả                                          |
-| ----------------------------------- | ----------- | ---------------------------------------------- |
-| webhook_events_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id)          |
-| webhook_events_created_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                  |
-| webhook_events_updated_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                  |
-| webhook_events_category_check       | CHECK       | Đảm bảo category chỉ nhận các giá trị cho phép |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| webhook_events_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id) |
+| webhook_events_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| webhook_events_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| webhook_events_category_check | CHECK | Đảm bảo category chỉ nhận các giá trị cho phép |
 
 ### 3.5. Ví dụ JSON
 
@@ -222,50 +222,50 @@ Bảng `webhook_deliveries` lưu trữ thông tin về lịch sử gửi webhook
 
 ### 4.2. Cấu trúc
 
-| Tên cột          | Kiểu dữ liệu | Nullable | Mặc định          | Mô tả                                          |
-| ---------------- | ------------ | -------- | ----------------- | ---------------------------------------------- |
-| id               | uuid         | false    | gen_random_uuid() | Khóa chính                                     |
-| organization_id  | uuid         | false    |                   | Khóa ngoại tới bảng organizations              |
-| webhook_id       | uuid         | false    |                   | Khóa ngoại tới bảng webhooks                   |
-| event_code       | varchar(100) | false    |                   | Mã sự kiện                                     |
-| status           | varchar(20)  | false    | 'pending'         | Trạng thái: pending, success, failed, retrying |
-| url              | varchar(255) | false    |                   | URL đích                                       |
-| http_method      | varchar(10)  | false    |                   | Phương thức HTTP                               |
-| headers          | jsonb        | true     | null              | Headers HTTP                                   |
-| payload          | jsonb        | false    |                   | Nội dung gửi đi                                |
-| response_status  | integer      | true     | null              | Mã trạng thái phản hồi                         |
-| response_headers | jsonb        | true     | null              | Headers phản hồi                               |
-| response_body    | text         | true     | null              | Nội dung phản hồi                              |
-| error_message    | text         | true     | null              | Thông báo lỗi                                  |
-| attempt_count    | integer      | false    | 0                 | Số lần thử                                     |
-| next_retry_at    | timestamp    | true     | null              | Thời gian thử lại tiếp theo                    |
-| processing_time  | integer      | true     | null              | Thời gian xử lý (ms)                           |
-| ip_address       | varchar(45)  | true     | null              | Địa chỉ IP                                     |
-| created_at       | timestamp    | false    | now()             | Thời gian tạo bản ghi                          |
-| updated_at       | timestamp    | false    | now()             | Thời gian cập nhật bản ghi                     |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính |
+| organization_id | uuid | false | | Khóa ngoại tới bảng organizations |
+| webhook_id | uuid | false | | Khóa ngoại tới bảng webhooks |
+| event_code | varchar(100) | false | | Mã sự kiện |
+| status | varchar(20) | false | 'pending' | Trạng thái: pending, success, failed, retrying |
+| url | varchar(255) | false | | URL đích |
+| http_method | varchar(10) | false | | Phương thức HTTP |
+| headers | jsonb | true | null | Headers HTTP |
+| payload | jsonb | false | | Nội dung gửi đi |
+| response_status | integer | true | null | Mã trạng thái phản hồi |
+| response_headers | jsonb | true | null | Headers phản hồi |
+| response_body | text | true | null | Nội dung phản hồi |
+| error_message | text | true | null | Thông báo lỗi |
+| attempt_count | integer | false | 0 | Số lần thử |
+| next_retry_at | timestamp | true | null | Thời gian thử lại tiếp theo |
+| processing_time | integer | true | null | Thời gian xử lý (ms) |
+| ip_address | varchar(45) | true | null | Địa chỉ IP |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
 
 ### 4.3. Chỉ mục
 
-| Tên chỉ mục                            | Loại        | Cột             | Mô tả                                    |
-| -------------------------------------- | ----------- | --------------- | ---------------------------------------- |
-| webhook_deliveries_pkey                | PRIMARY KEY | id              | Khóa chính                               |
-| webhook_deliveries_organization_id_idx | INDEX       | organization_id | Tăng tốc truy vấn theo tổ chức           |
-| webhook_deliveries_webhook_id_idx      | INDEX       | webhook_id      | Tăng tốc truy vấn theo webhook           |
-| webhook_deliveries_event_code_idx      | INDEX       | event_code      | Tăng tốc truy vấn theo mã sự kiện        |
-| webhook_deliveries_status_idx          | INDEX       | status          | Tăng tốc truy vấn theo trạng thái        |
-| webhook_deliveries_created_at_idx      | INDEX       | created_at      | Tăng tốc truy vấn theo thời gian tạo     |
-| webhook_deliveries_next_retry_at_idx   | INDEX       | next_retry_at   | Tăng tốc truy vấn theo thời gian thử lại |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| webhook_deliveries_pkey | PRIMARY KEY | id | Khóa chính |
+| webhook_deliveries_organization_id_idx | INDEX | organization_id | Tăng tốc truy vấn theo tổ chức |
+| webhook_deliveries_webhook_id_idx | INDEX | webhook_id | Tăng tốc truy vấn theo webhook |
+| webhook_deliveries_event_code_idx | INDEX | event_code | Tăng tốc truy vấn theo mã sự kiện |
+| webhook_deliveries_status_idx | INDEX | status | Tăng tốc truy vấn theo trạng thái |
+| webhook_deliveries_created_at_idx | INDEX | created_at | Tăng tốc truy vấn theo thời gian tạo |
+| webhook_deliveries_next_retry_at_idx | INDEX | next_retry_at | Tăng tốc truy vấn theo thời gian thử lại |
 
 ### 4.4. Ràng buộc
 
-| Tên ràng buộc                            | Loại        | Mô tả                                             |
-| ---------------------------------------- | ----------- | ------------------------------------------------- |
-| webhook_deliveries_organization_id_fkey  | FOREIGN KEY | Tham chiếu đến bảng organizations(id)             |
-| webhook_deliveries_webhook_id_fkey       | FOREIGN KEY | Tham chiếu đến bảng webhooks(id)                  |
-| webhook_deliveries_status_check          | CHECK       | Đảm bảo status chỉ nhận các giá trị cho phép      |
-| webhook_deliveries_http_method_check     | CHECK       | Đảm bảo http_method chỉ nhận các giá trị cho phép |
-| webhook_deliveries_attempt_count_check   | CHECK       | Đảm bảo attempt_count >= 0                        |
-| webhook_deliveries_processing_time_check | CHECK       | Đảm bảo processing_time >= 0 khi không null       |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| webhook_deliveries_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id) |
+| webhook_deliveries_webhook_id_fkey | FOREIGN KEY | Tham chiếu đến bảng webhooks(id) |
+| webhook_deliveries_status_check | CHECK | Đảm bảo status chỉ nhận các giá trị cho phép |
+| webhook_deliveries_http_method_check | CHECK | Đảm bảo http_method chỉ nhận các giá trị cho phép |
+| webhook_deliveries_attempt_count_check | CHECK | Đảm bảo attempt_count >= 0 |
+| webhook_deliveries_processing_time_check | CHECK | Đảm bảo processing_time >= 0 khi không null |
 
 ### 4.5. Ví dụ JSON
 

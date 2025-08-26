@@ -34,54 +34,54 @@ Bảng `marketplace_connections` lưu trữ thông tin về các kết nối v�
 
 ### 2.2. Cấu trúc
 
-| Tên cột           | Kiểu dữ liệu | Nullable | Mặc định          | Mô tả                                                      |
-| ----------------- | ------------ | -------- | ----------------- | ---------------------------------------------------------- |
-| id                | uuid         | false    | gen_random_uuid() | Khóa chính, định danh duy nhất của kết nối                 |
-| organization_id   | uuid         | false    |                   | Khóa ngoại tới bảng organizations, xác định tổ chức sở hữu |
-| name              | varchar(100) | false    |                   | Tên kết nối                                                |
-| description       | text         | true     | null              | Mô tả kết nối                                              |
-| platform          | varchar(50)  | false    |                   | Nền tảng: shopee, lazada, tiktok, woocommerce, etc.        |
-| api_url           | varchar(255) | false    |                   | URL API của nền tảng                                       |
-| api_version       | varchar(20)  | true     | null              | Phiên bản API                                              |
-| app_id            | varchar(100) | true     | null              | ID ứng dụng                                                |
-| app_key           | varchar(255) | true     | null              | Khóa ứng dụng (được mã hóa)                                |
-| app_secret        | varchar(255) | true     | null              | Bí mật ứng dụng (được mã hóa)                              |
-| access_token      | varchar(255) | true     | null              | Token truy cập (được mã hóa)                               |
-| refresh_token     | varchar(255) | true     | null              | Token làm mới (được mã hóa)                                |
-| token_expires_at  | timestamp    | true     | null              | Thời gian hết hạn token                                    |
-| status            | varchar(20)  | false    | 'inactive'        | Trạng thái: active, inactive, error                        |
-| is_authorized     | boolean      | false    | false             | Đánh dấu đã được ủy quyền                                  |
-| auth_callback_url | varchar(255) | true     | null              | URL callback ủy quyền                                      |
-| auth_scope        | varchar(255) | true     | null              | Phạm vi ủy quyền                                           |
-| settings          | jsonb        | true     | null              | Cài đặt kết nối                                            |
-| last_sync_at      | timestamp    | true     | null              | Thời gian đồng bộ gần nhất                                 |
-| error_message     | text         | true     | null              | Thông báo lỗi gần nhất                                     |
-| created_at        | timestamp    | false    | now()             | Thời gian tạo bản ghi                                      |
-| updated_at        | timestamp    | false    | now()             | Thời gian cập nhật bản ghi                                 |
-| deleted_at        | timestamp    | true     | null              | Thời gian xóa bản ghi (soft delete)                        |
-| created_by        | uuid         | true     | null              | ID người tạo                                               |
-| updated_by        | uuid         | true     | null              | ID người cập nhật                                          |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính, định danh duy nhất của kết nối |
+| organization_id | uuid | false | | Khóa ngoại tới bảng organizations, xác định tổ chức sở hữu |
+| name | varchar(100) | false | | Tên kết nối |
+| description | text | true | null | Mô tả kết nối |
+| platform | varchar(50) | false | | Nền tảng: shopee, lazada, tiktok, woocommerce, etc. |
+| api_url | varchar(255) | false | | URL API của nền tảng |
+| api_version | varchar(20) | true | null | Phiên bản API |
+| app_id | varchar(100) | true | null | ID ứng dụng |
+| app_key | varchar(255) | true | null | Khóa ứng dụng (được mã hóa) |
+| app_secret | varchar(255) | true | null | Bí mật ứng dụng (được mã hóa) |
+| access_token | varchar(255) | true | null | Token truy cập (được mã hóa) |
+| refresh_token | varchar(255) | true | null | Token làm mới (được mã hóa) |
+| token_expires_at | timestamp | true | null | Thời gian hết hạn token |
+| status | varchar(20) | false | 'inactive' | Trạng thái: active, inactive, error |
+| is_authorized | boolean | false | false | Đánh dấu đã được ủy quyền |
+| auth_callback_url | varchar(255) | true | null | URL callback ủy quyền |
+| auth_scope | varchar(255) | true | null | Phạm vi ủy quyền |
+| settings | jsonb | true | null | Cài đặt kết nối |
+| last_sync_at | timestamp | true | null | Thời gian đồng bộ gần nhất |
+| error_message | text | true | null | Thông báo lỗi gần nhất |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| deleted_at | timestamp | true | null | Thời gian xóa bản ghi (soft delete) |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 2.3. Chỉ mục
 
-| Tên chỉ mục                                       | Loại        | Cột                       | Mô tả                                                   |
-| ------------------------------------------------- | ----------- | ------------------------- | ------------------------------------------------------- |
-| marketplace_connections_pkey                      | PRIMARY KEY | id                        | Khóa chính                                              |
-| marketplace_connections_organization_platform_idx | UNIQUE      | organization_id, platform | Đảm bảo mỗi tổ chức chỉ có một kết nối cho mỗi nền tảng |
-| marketplace_connections_organization_id_idx       | INDEX       | organization_id           | Tăng tốc truy vấn theo tổ chức                          |
-| marketplace_connections_platform_idx              | INDEX       | platform                  | Tăng tốc truy vấn theo nền tảng                         |
-| marketplace_connections_status_idx                | INDEX       | status                    | Tăng tốc truy vấn theo trạng thái                       |
-| marketplace_connections_is_authorized_idx         | INDEX       | is_authorized             | Tăng tốc truy vấn theo trạng thái ủy quyền              |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| marketplace_connections_pkey | PRIMARY KEY | id | Khóa chính |
+| marketplace_connections_organization_platform_idx | UNIQUE | organization_id, platform | Đảm bảo mỗi tổ chức chỉ có một kết nối cho mỗi nền tảng |
+| marketplace_connections_organization_id_idx | INDEX | organization_id | Tăng tốc truy vấn theo tổ chức |
+| marketplace_connections_platform_idx | INDEX | platform | Tăng tốc truy vấn theo nền tảng |
+| marketplace_connections_status_idx | INDEX | status | Tăng tốc truy vấn theo trạng thái |
+| marketplace_connections_is_authorized_idx | INDEX | is_authorized | Tăng tốc truy vấn theo trạng thái ủy quyền |
 
 ### 2.4. Ràng buộc
 
-| Tên ràng buộc                                | Loại        | Mô tả                                          |
-| -------------------------------------------- | ----------- | ---------------------------------------------- |
-| marketplace_connections_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id)          |
-| marketplace_connections_created_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                  |
-| marketplace_connections_updated_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                  |
-| marketplace_connections_platform_check       | CHECK       | Đảm bảo platform chỉ nhận các giá trị cho phép |
-| marketplace_connections_status_check         | CHECK       | Đảm bảo status chỉ nhận các giá trị cho phép   |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| marketplace_connections_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id) |
+| marketplace_connections_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| marketplace_connections_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| marketplace_connections_platform_check | CHECK | Đảm bảo platform chỉ nhận các giá trị cho phép |
+| marketplace_connections_status_check | CHECK | Đảm bảo status chỉ nhận các giá trị cho phép |
 
 ### 2.5. Ví dụ JSON
 
@@ -130,49 +130,49 @@ Bảng `marketplace_shops` lưu trữ thông tin về các cửa hàng trên cá
 
 ### 3.2. Cấu trúc
 
-| Tên cột         | Kiểu dữ liệu | Nullable | Mặc định          | Mô tả                                       |
-| --------------- | ------------ | -------- | ----------------- | ------------------------------------------- |
-| id              | uuid         | false    | gen_random_uuid() | Khóa chính                                  |
-| organization_id | uuid         | false    |                   | Khóa ngoại tới bảng organizations           |
-| connection_id   | uuid         | false    |                   | Khóa ngoại tới bảng marketplace_connections |
-| shop_id         | varchar(100) | false    |                   | ID cửa hàng trên sàn                        |
-| name            | varchar(100) | false    |                   | Tên cửa hàng                                |
-| description     | text         | true     | null              | Mô tả cửa hàng                              |
-| url             | varchar(255) | true     | null              | URL cửa hàng                                |
-| logo_url        | varchar(255) | true     | null              | URL logo cửa hàng                           |
-| country         | varchar(50)  | true     | null              | Quốc gia                                    |
-| region          | varchar(50)  | true     | null              | Khu vực                                     |
-| status          | varchar(20)  | false    | 'active'          | Trạng thái: active, inactive, banned        |
-| seller_id       | varchar(100) | true     | null              | ID người bán                                |
-| seller_email    | varchar(255) | true     | null              | Email người bán                             |
-| seller_phone    | varchar(20)  | true     | null              | Số điện thoại người bán                     |
-| metadata        | jsonb        | true     | null              | Metadata bổ sung                            |
-| created_at      | timestamp    | false    | now()             | Thời gian tạo bản ghi                       |
-| updated_at      | timestamp    | false    | now()             | Thời gian cập nhật bản ghi                  |
-| deleted_at      | timestamp    | true     | null              | Thời gian xóa bản ghi (soft delete)         |
-| created_by      | uuid         | true     | null              | ID người tạo                                |
-| updated_by      | uuid         | true     | null              | ID người cập nhật                           |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính |
+| organization_id | uuid | false | | Khóa ngoại tới bảng organizations |
+| connection_id | uuid | false | | Khóa ngoại tới bảng marketplace_connections |
+| shop_id | varchar(100) | false | | ID cửa hàng trên sàn |
+| name | varchar(100) | false | | Tên cửa hàng |
+| description | text | true | null | Mô tả cửa hàng |
+| url | varchar(255) | true | null | URL cửa hàng |
+| logo_url | varchar(255) | true | null | URL logo cửa hàng |
+| country | varchar(50) | true | null | Quốc gia |
+| region | varchar(50) | true | null | Khu vực |
+| status | varchar(20) | false | 'active' | Trạng thái: active, inactive, banned |
+| seller_id | varchar(100) | true | null | ID người bán |
+| seller_email | varchar(255) | true | null | Email người bán |
+| seller_phone | varchar(20) | true | null | Số điện thoại người bán |
+| metadata | jsonb | true | null | Metadata bổ sung |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| deleted_at | timestamp | true | null | Thời gian xóa bản ghi (soft delete) |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 3.3. Chỉ mục
 
-| Tên chỉ mục                              | Loại        | Cột                    | Mô tả                                           |
-| ---------------------------------------- | ----------- | ---------------------- | ----------------------------------------------- |
-| marketplace_shops_pkey                   | PRIMARY KEY | id                     | Khóa chính                                      |
-| marketplace_shops_connection_shop_id_idx | UNIQUE      | connection_id, shop_id | Đảm bảo ID cửa hàng là duy nhất cho mỗi kết nối |
-| marketplace_shops_organization_id_idx    | INDEX       | organization_id        | Tăng tốc truy vấn theo tổ chức                  |
-| marketplace_shops_connection_id_idx      | INDEX       | connection_id          | Tăng tốc truy vấn theo kết nối                  |
-| marketplace_shops_status_idx             | INDEX       | status                 | Tăng tốc truy vấn theo trạng thái               |
-| marketplace_shops_country_idx            | INDEX       | country                | Tăng tốc truy vấn theo quốc gia                 |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| marketplace_shops_pkey | PRIMARY KEY | id | Khóa chính |
+| marketplace_shops_connection_shop_id_idx | UNIQUE | connection_id, shop_id | Đảm bảo ID cửa hàng là duy nhất cho mỗi kết nối |
+| marketplace_shops_organization_id_idx | INDEX | organization_id | Tăng tốc truy vấn theo tổ chức |
+| marketplace_shops_connection_id_idx | INDEX | connection_id | Tăng tốc truy vấn theo kết nối |
+| marketplace_shops_status_idx | INDEX | status | Tăng tốc truy vấn theo trạng thái |
+| marketplace_shops_country_idx | INDEX | country | Tăng tốc truy vấn theo quốc gia |
 
 ### 3.4. Ràng buộc
 
-| Tên ràng buộc                          | Loại        | Mô tả                                           |
-| -------------------------------------- | ----------- | ----------------------------------------------- |
-| marketplace_shops_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id)           |
-| marketplace_shops_connection_id_fkey   | FOREIGN KEY | Tham chiếu đến bảng marketplace_connections(id) |
-| marketplace_shops_created_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                   |
-| marketplace_shops_updated_by_fkey      | FOREIGN KEY | Tham chiếu đến bảng users(id)                   |
-| marketplace_shops_status_check         | CHECK       | Đảm bảo status chỉ nhận các giá trị cho phép    |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| marketplace_shops_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id) |
+| marketplace_shops_connection_id_fkey | FOREIGN KEY | Tham chiếu đến bảng marketplace_connections(id) |
+| marketplace_shops_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| marketplace_shops_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| marketplace_shops_status_check | CHECK | Đảm bảo status chỉ nhận các giá trị cho phép |
 
 ### 3.5. Ví dụ JSON
 
@@ -215,72 +215,72 @@ Bảng `marketplace_products` lưu trữ thông tin về các sản phẩm trên
 
 ### 4.2. Cấu trúc
 
-| Tên cột          | Kiểu dữ liệu  | Nullable | Mặc định          | Mô tả                                            |
-| ---------------- | ------------- | -------- | ----------------- | ------------------------------------------------ |
-| id               | uuid          | false    | gen_random_uuid() | Khóa chính                                       |
-| organization_id  | uuid          | false    |                   | Khóa ngoại tới bảng organizations                |
-| connection_id    | uuid          | false    |                   | Khóa ngoại tới bảng marketplace_connections      |
-| shop_id          | uuid          | false    |                   | Khóa ngoại tới bảng marketplace_shops            |
-| product_id       | varchar(100)  | false    |                   | ID sản phẩm trên sàn                             |
-| local_product_id | uuid          | true     | null              | Khóa ngoại tới bảng products, sản phẩm trong CRM |
-| name             | varchar(255)  | false    |                   | Tên sản phẩm                                     |
-| description      | text          | true     | null              | Mô tả sản phẩm                                   |
-| category_id      | varchar(100)  | true     | null              | ID danh mục trên sàn                             |
-| brand            | varchar(100)  | true     | null              | Thương hiệu                                      |
-| sku              | varchar(100)  | true     | null              | Mã SKU                                           |
-| price            | decimal(15,2) | false    |                   | Giá bán                                          |
-| original_price   | decimal(15,2) | true     | null              | Giá gốc                                          |
-| currency         | varchar(3)    | false    | 'VND'             | Đơn vị tiền tệ                                   |
-| stock            | integer       | false    | 0                 | Số lượng tồn kho                                 |
-| weight           | decimal(10,2) | true     | null              | Trọng lượng (gram)                               |
-| length           | decimal(10,2) | true     | null              | Chiều dài (cm)                                   |
-| width            | decimal(10,2) | true     | null              | Chiều rộng (cm)                                  |
-| height           | decimal(10,2) | true     | null              | Chiều cao (cm)                                   |
-| images           | jsonb         | true     | null              | Danh sách hình ảnh                               |
-| variations       | jsonb         | true     | null              | Danh sách biến thể                               |
-| attributes       | jsonb         | true     | null              | Thuộc tính sản phẩm                              |
-| status           | varchar(20)   | false    | 'inactive'        | Trạng thái: active, inactive, deleted, banned    |
-| condition        | varchar(20)   | false    | 'new'             | Tình trạng: new, used, refurbished               |
-| url              | varchar(255)  | true     | null              | URL sản phẩm                                     |
-| rating           | decimal(3,2)  | true     | null              | Đánh giá trung bình                              |
-| rating_count     | integer       | true     | null              | Số lượng đánh giá                                |
-| sold_count       | integer       | true     | null              | Số lượng đã bán                                  |
-| is_synced        | boolean       | false    | false             | Đánh dấu đã đồng bộ                              |
-| last_sync_at     | timestamp     | true     | null              | Thời gian đồng bộ gần nhất                       |
-| created_at       | timestamp     | false    | now()             | Thời gian tạo bản ghi                            |
-| updated_at       | timestamp     | false    | now()             | Thời gian cập nhật bản ghi                       |
-| deleted_at       | timestamp     | true     | null              | Thời gian xóa bản ghi (soft delete)              |
-| created_by       | uuid          | true     | null              | ID người tạo                                     |
-| updated_by       | uuid          | true     | null              | ID người cập nhật                                |
+| Tên cột | Kiểu dữ liệu | Nullable | Mặc định | Mô tả |
+|---------|--------------|----------|----------|-------|
+| id | uuid | false | gen_random_uuid() | Khóa chính |
+| organization_id | uuid | false | | Khóa ngoại tới bảng organizations |
+| connection_id | uuid | false | | Khóa ngoại tới bảng marketplace_connections |
+| shop_id | uuid | false | | Khóa ngoại tới bảng marketplace_shops |
+| product_id | varchar(100) | false | | ID sản phẩm trên sàn |
+| local_product_id | uuid | true | null | Khóa ngoại tới bảng products, sản phẩm trong CRM |
+| name | varchar(255) | false | | Tên sản phẩm |
+| description | text | true | null | Mô tả sản phẩm |
+| category_id | varchar(100) | true | null | ID danh mục trên sàn |
+| brand | varchar(100) | true | null | Thương hiệu |
+| sku | varchar(100) | true | null | Mã SKU |
+| price | decimal(15,2) | false | | Giá bán |
+| original_price | decimal(15,2) | true | null | Giá gốc |
+| currency | varchar(3) | false | 'VND' | Đơn vị tiền tệ |
+| stock | integer | false | 0 | Số lượng tồn kho |
+| weight | decimal(10,2) | true | null | Trọng lượng (gram) |
+| length | decimal(10,2) | true | null | Chiều dài (cm) |
+| width | decimal(10,2) | true | null | Chiều rộng (cm) |
+| height | decimal(10,2) | true | null | Chiều cao (cm) |
+| images | jsonb | true | null | Danh sách hình ảnh |
+| variations | jsonb | true | null | Danh sách biến thể |
+| attributes | jsonb | true | null | Thuộc tính sản phẩm |
+| status | varchar(20) | false | 'inactive' | Trạng thái: active, inactive, deleted, banned |
+| condition | varchar(20) | false | 'new' | Tình trạng: new, used, refurbished |
+| url | varchar(255) | true | null | URL sản phẩm |
+| rating | decimal(3,2) | true | null | Đánh giá trung bình |
+| rating_count | integer | true | null | Số lượng đánh giá |
+| sold_count | integer | true | null | Số lượng đã bán |
+| is_synced | boolean | false | false | Đánh dấu đã đồng bộ |
+| last_sync_at | timestamp | true | null | Thời gian đồng bộ gần nhất |
+| created_at | timestamp | false | now() | Thời gian tạo bản ghi |
+| updated_at | timestamp | false | now() | Thời gian cập nhật bản ghi |
+| deleted_at | timestamp | true | null | Thời gian xóa bản ghi (soft delete) |
+| created_by | uuid | true | null | ID người tạo |
+| updated_by | uuid | true | null | ID người cập nhật |
 
 ### 4.3. Chỉ mục
 
-| Tên chỉ mục                                 | Loại        | Cột                       | Mô tả                                           |
-| ------------------------------------------- | ----------- | ------------------------- | ----------------------------------------------- |
-| marketplace_products_pkey                   | PRIMARY KEY | id                        | Khóa chính                                      |
-| marketplace_products_connection_product_idx | UNIQUE      | connection_id, product_id | Đảm bảo ID sản phẩm là duy nhất cho mỗi kết nối |
-| marketplace_products_organization_id_idx    | INDEX       | organization_id           | Tăng tốc truy vấn theo tổ chức                  |
-| marketplace_products_connection_id_idx      | INDEX       | connection_id             | Tăng tốc truy vấn theo kết nối                  |
-| marketplace_products_shop_id_idx            | INDEX       | shop_id                   | Tăng tốc truy vấn theo cửa hàng                 |
-| marketplace_products_local_product_id_idx   | INDEX       | local_product_id          | Tăng tốc truy vấn theo sản phẩm trong CRM       |
-| marketplace_products_status_idx             | INDEX       | status                    | Tăng tốc truy vấn theo trạng thái               |
-| marketplace_products_is_synced_idx          | INDEX       | is_synced                 | Tăng tốc truy vấn theo trạng thái đồng bộ       |
+| Tên chỉ mục | Loại | Cột | Mô tả |
+|-------------|------|-----|-------|
+| marketplace_products_pkey | PRIMARY KEY | id | Khóa chính |
+| marketplace_products_connection_product_idx | UNIQUE | connection_id, product_id | Đảm bảo ID sản phẩm là duy nhất cho mỗi kết nối |
+| marketplace_products_organization_id_idx | INDEX | organization_id | Tăng tốc truy vấn theo tổ chức |
+| marketplace_products_connection_id_idx | INDEX | connection_id | Tăng tốc truy vấn theo kết nối |
+| marketplace_products_shop_id_idx | INDEX | shop_id | Tăng tốc truy vấn theo cửa hàng |
+| marketplace_products_local_product_id_idx | INDEX | local_product_id | Tăng tốc truy vấn theo sản phẩm trong CRM |
+| marketplace_products_status_idx | INDEX | status | Tăng tốc truy vấn theo trạng thái |
+| marketplace_products_is_synced_idx | INDEX | is_synced | Tăng tốc truy vấn theo trạng thái đồng bộ |
 
 ### 4.4. Ràng buộc
 
-| Tên ràng buộc                              | Loại        | Mô tả                                             |
-| ------------------------------------------ | ----------- | ------------------------------------------------- |
-| marketplace_products_organization_id_fkey  | FOREIGN KEY | Tham chiếu đến bảng organizations(id)             |
-| marketplace_products_connection_id_fkey    | FOREIGN KEY | Tham chiếu đến bảng marketplace_connections(id)   |
-| marketplace_products_shop_id_fkey          | FOREIGN KEY | Tham chiếu đến bảng marketplace_shops(id)         |
-| marketplace_products_local_product_id_fkey | FOREIGN KEY | Tham chiếu đến bảng products(id)                  |
-| marketplace_products_created_by_fkey       | FOREIGN KEY | Tham chiếu đến bảng users(id)                     |
-| marketplace_products_updated_by_fkey       | FOREIGN KEY | Tham chiếu đến bảng users(id)                     |
-| marketplace_products_status_check          | CHECK       | Đảm bảo status chỉ nhận các giá trị cho phép      |
-| marketplace_products_condition_check       | CHECK       | Đảm bảo condition chỉ nhận các giá trị cho phép   |
-| marketplace_products_price_check           | CHECK       | Đảm bảo price >= 0                                |
-| marketplace_products_stock_check           | CHECK       | Đảm bảo stock >= 0                                |
-| marketplace_products_rating_check          | CHECK       | Đảm bảo rating >= 0 và rating <= 5 khi không null |
+| Tên ràng buộc | Loại | Mô tả |
+|---------------|------|-------|
+| marketplace_products_organization_id_fkey | FOREIGN KEY | Tham chiếu đến bảng organizations(id) |
+| marketplace_products_connection_id_fkey | FOREIGN KEY | Tham chiếu đến bảng marketplace_connections(id) |
+| marketplace_products_shop_id_fkey | FOREIGN KEY | Tham chiếu đến bảng marketplace_shops(id) |
+| marketplace_products_local_product_id_fkey | FOREIGN KEY | Tham chiếu đến bảng products(id) |
+| marketplace_products_created_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| marketplace_products_updated_by_fkey | FOREIGN KEY | Tham chiếu đến bảng users(id) |
+| marketplace_products_status_check | CHECK | Đảm bảo status chỉ nhận các giá trị cho phép |
+| marketplace_products_condition_check | CHECK | Đảm bảo condition chỉ nhận các giá trị cho phép |
+| marketplace_products_price_check | CHECK | Đảm bảo price >= 0 |
+| marketplace_products_stock_check | CHECK | Đảm bảo stock >= 0 |
+| marketplace_products_rating_check | CHECK | Đảm bảo rating >= 0 và rating <= 5 khi không null |
 
 ### 4.5. Ví dụ JSON
 
@@ -297,14 +297,14 @@ Bảng `marketplace_products` lưu trữ thông tin về các sản phẩm trên
   "category_id": "100001234",
   "brand": "NextFlow",
   "sku": "NextFlow-CRM-PREMIUM",
-  "price": 5000000.0,
-  "original_price": 6000000.0,
+  "price": 5000000.00,
+  "original_price": 6000000.00,
   "currency": "VND",
   "stock": 999,
-  "weight": 0.0,
-  "length": 0.0,
-  "width": 0.0,
-  "height": 0.0,
+  "weight": 0.00,
+  "length": 0.00,
+  "width": 0.00,
+  "height": 0.00,
   "images": [
     {
       "url": "https://cf.shopee.vn/file/image1.jpg",
@@ -320,14 +320,14 @@ Bảng `marketplace_products` lưu trữ thông tin về các sản phẩm trên
       "variation_id": "var_123456",
       "name": "Gói 1 năm",
       "sku": "NextFlow-CRM-PREMIUM-1Y",
-      "price": 5000000.0,
+      "price": 5000000.00,
       "stock": 999
     },
     {
       "variation_id": "var_123457",
       "name": "Gói 2 năm",
       "sku": "NextFlow-CRM-PREMIUM-2Y",
-      "price": 9000000.0,
+      "price": 9000000.00,
       "stock": 999
     }
   ],
@@ -344,7 +344,7 @@ Bảng `marketplace_products` lưu trữ thông tin về các sản phẩm trên
   "status": "active",
   "condition": "new",
   "url": "https://shopee.vn/NextFlow-CRM-Goi-Premium-i.123456789.987654321",
-  "rating": 4.9,
+  "rating": 4.90,
   "rating_count": 50,
   "sold_count": 120,
   "is_synced": true,

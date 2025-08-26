@@ -140,81 +140,81 @@ Tích hợp với các dịch vụ AI cho phép NextFlow CRM-AI sử dụng các
 
 Bảng `api_integration` lưu trữ thông tin về các tích hợp API.
 
-| Tên trường   | Kiểu dữ liệu | Mô tả                                            |
-| ------------ | ------------ | ------------------------------------------------ |
-| id           | UUID         | Khóa chính                                       |
-| tenant_id    | UUID         | ID của tenant                                    |
-| name         | VARCHAR(255) | Tên tích hợp                                     |
-| description  | TEXT         | Mô tả                                            |
-| type         | ENUM         | Loại API (rest, graphql, soap)                   |
-| direction    | ENUM         | Hướng (inbound, outbound, bidirectional)         |
-| base_url     | VARCHAR(255) | URL cơ sở                                        |
-| auth_type    | ENUM         | Loại xác thực (api_key, oauth, jwt, basic, none) |
-| auth_config  | JSONB        | Cấu hình xác thực                                |
-| headers      | JSONB        | Headers mặc định                                 |
-| rate_limit   | INTEGER      | Giới hạn số lượng requests                       |
-| timeout      | INTEGER      | Thời gian timeout (ms)                           |
-| retry_config | JSONB        | Cấu hình retry                                   |
-| status       | ENUM         | Trạng thái (active, inactive, testing)           |
-| is_system    | BOOLEAN      | Là tích hợp hệ thống hay không                   |
-| created_by   | UUID         | Người tạo                                        |
-| updated_by   | UUID         | Người cập nhật                                   |
-| created_at   | TIMESTAMP    | Thời gian tạo                                    |
-| updated_at   | TIMESTAMP    | Thời gian cập nhật                               |
-| deleted_at   | TIMESTAMP    | Thời gian xóa (soft delete)                      |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| name | VARCHAR(255) | Tên tích hợp |
+| description | TEXT | Mô tả |
+| type | ENUM | Loại API (rest, graphql, soap) |
+| direction | ENUM | Hướng (inbound, outbound, bidirectional) |
+| base_url | VARCHAR(255) | URL cơ sở |
+| auth_type | ENUM | Loại xác thực (api_key, oauth, jwt, basic, none) |
+| auth_config | JSONB | Cấu hình xác thực |
+| headers | JSONB | Headers mặc định |
+| rate_limit | INTEGER | Giới hạn số lượng requests |
+| timeout | INTEGER | Thời gian timeout (ms) |
+| retry_config | JSONB | Cấu hình retry |
+| status | ENUM | Trạng thái (active, inactive, testing) |
+| is_system | BOOLEAN | Là tích hợp hệ thống hay không |
+| created_by | UUID | Người tạo |
+| updated_by | UUID | Người cập nhật |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 #### 3.1.2. Bảng api_endpoint
 
 Bảng `api_endpoint` lưu trữ thông tin về các endpoint API.
 
-| Tên trường       | Kiểu dữ liệu | Mô tả                                            |
-| ---------------- | ------------ | ------------------------------------------------ |
-| id               | UUID         | Khóa chính                                       |
-| tenant_id        | UUID         | ID của tenant                                    |
-| integration_id   | UUID         | ID của tích hợp API                              |
-| name             | VARCHAR(255) | Tên endpoint                                     |
-| description      | TEXT         | Mô tả                                            |
-| path             | VARCHAR(255) | Đường dẫn endpoint                               |
-| method           | ENUM         | Phương thức HTTP (GET, POST, PUT, PATCH, DELETE) |
-| request_schema   | JSONB        | Schema của request                               |
-| response_schema  | JSONB        | Schema của response                              |
-| headers          | JSONB        | Headers riêng cho endpoint                       |
-| params           | JSONB        | Parameters                                       |
-| timeout          | INTEGER      | Thời gian timeout (ms)                           |
-| retry_config     | JSONB        | Cấu hình retry                                   |
-| rate_limit       | INTEGER      | Giới hạn số lượng requests                       |
-| cache_config     | JSONB        | Cấu hình cache                                   |
-| transform_config | JSONB        | Cấu hình transform dữ liệu                       |
-| status           | ENUM         | Trạng thái (active, inactive, testing)           |
-| created_by       | UUID         | Người tạo                                        |
-| updated_by       | UUID         | Người cập nhật                                   |
-| created_at       | TIMESTAMP    | Thời gian tạo                                    |
-| updated_at       | TIMESTAMP    | Thời gian cập nhật                               |
-| deleted_at       | TIMESTAMP    | Thời gian xóa (soft delete)                      |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| integration_id | UUID | ID của tích hợp API |
+| name | VARCHAR(255) | Tên endpoint |
+| description | TEXT | Mô tả |
+| path | VARCHAR(255) | Đường dẫn endpoint |
+| method | ENUM | Phương thức HTTP (GET, POST, PUT, PATCH, DELETE) |
+| request_schema | JSONB | Schema của request |
+| response_schema | JSONB | Schema của response |
+| headers | JSONB | Headers riêng cho endpoint |
+| params | JSONB | Parameters |
+| timeout | INTEGER | Thời gian timeout (ms) |
+| retry_config | JSONB | Cấu hình retry |
+| rate_limit | INTEGER | Giới hạn số lượng requests |
+| cache_config | JSONB | Cấu hình cache |
+| transform_config | JSONB | Cấu hình transform dữ liệu |
+| status | ENUM | Trạng thái (active, inactive, testing) |
+| created_by | UUID | Người tạo |
+| updated_by | UUID | Người cập nhật |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 #### 3.1.3. Bảng api_log
 
 Bảng `api_log` lưu trữ log của các API calls.
 
-| Tên trường       | Kiểu dữ liệu | Mô tả                     |
-| ---------------- | ------------ | ------------------------- |
-| id               | UUID         | Khóa chính                |
-| tenant_id        | UUID         | ID của tenant             |
-| integration_id   | UUID         | ID của tích hợp API       |
-| endpoint_id      | UUID         | ID của endpoint API       |
-| direction        | ENUM         | Hướng (inbound, outbound) |
-| request_url      | TEXT         | URL của request           |
-| request_method   | VARCHAR(10)  | Phương thức HTTP          |
-| request_headers  | JSONB        | Headers của request       |
-| request_body     | JSONB        | Body của request          |
-| response_status  | INTEGER      | Status code của response  |
-| response_headers | JSONB        | Headers của response      |
-| response_body    | JSONB        | Body của response         |
-| error            | TEXT         | Lỗi (nếu có)              |
-| duration         | INTEGER      | Thời gian xử lý (ms)      |
-| ip_address       | VARCHAR(50)  | Địa chỉ IP                |
-| user_agent       | VARCHAR(255) | User agent                |
-| created_at       | TIMESTAMP    | Thời gian tạo             |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| integration_id | UUID | ID của tích hợp API |
+| endpoint_id | UUID | ID của endpoint API |
+| direction | ENUM | Hướng (inbound, outbound) |
+| request_url | TEXT | URL của request |
+| request_method | VARCHAR(10) | Phương thức HTTP |
+| request_headers | JSONB | Headers của request |
+| request_body | JSONB | Body của request |
+| response_status | INTEGER | Status code của response |
+| response_headers | JSONB | Headers của response |
+| response_body | JSONB | Body của response |
+| error | TEXT | Lỗi (nếu có) |
+| duration | INTEGER | Thời gian xử lý (ms) |
+| ip_address | VARCHAR(50) | Địa chỉ IP |
+| user_agent | VARCHAR(255) | User agent |
+| created_at | TIMESTAMP | Thời gian tạo |
 
 ### 3.2. Webhook Integration
 
@@ -222,51 +222,51 @@ Bảng `api_log` lưu trữ log của các API calls.
 
 Bảng `webhook_integration` lưu trữ thông tin về các tích hợp webhook.
 
-| Tên trường     | Kiểu dữ liệu | Mô tả                                    |
-| -------------- | ------------ | ---------------------------------------- |
-| id             | UUID         | Khóa chính                               |
-| tenant_id      | UUID         | ID của tenant                            |
-| name           | VARCHAR(255) | Tên tích hợp                             |
-| description    | TEXT         | Mô tả                                    |
-| direction      | ENUM         | Hướng (inbound, outbound)                |
-| url            | VARCHAR(255) | URL webhook                              |
-| events         | JSONB        | Các sự kiện                              |
-| headers        | JSONB        | Headers                                  |
-| auth_type      | ENUM         | Loại xác thực (none, basic, hmac, token) |
-| auth_config    | JSONB        | Cấu hình xác thực                        |
-| secret         | VARCHAR(255) | Secret key                               |
-| payload_format | ENUM         | Định dạng payload (json, xml, form)      |
-| retry_config   | JSONB        | Cấu hình retry                           |
-| status         | ENUM         | Trạng thái (active, inactive, testing)   |
-| created_by     | UUID         | Người tạo                                |
-| updated_by     | UUID         | Người cập nhật                           |
-| created_at     | TIMESTAMP    | Thời gian tạo                            |
-| updated_at     | TIMESTAMP    | Thời gian cập nhật                       |
-| deleted_at     | TIMESTAMP    | Thời gian xóa (soft delete)              |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| name | VARCHAR(255) | Tên tích hợp |
+| description | TEXT | Mô tả |
+| direction | ENUM | Hướng (inbound, outbound) |
+| url | VARCHAR(255) | URL webhook |
+| events | JSONB | Các sự kiện |
+| headers | JSONB | Headers |
+| auth_type | ENUM | Loại xác thực (none, basic, hmac, token) |
+| auth_config | JSONB | Cấu hình xác thực |
+| secret | VARCHAR(255) | Secret key |
+| payload_format | ENUM | Định dạng payload (json, xml, form) |
+| retry_config | JSONB | Cấu hình retry |
+| status | ENUM | Trạng thái (active, inactive, testing) |
+| created_by | UUID | Người tạo |
+| updated_by | UUID | Người cập nhật |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 #### 3.2.2. Bảng webhook_log
 
 Bảng `webhook_log` lưu trữ log của các webhook.
 
-| Tên trường       | Kiểu dữ liệu | Mô tả                                  |
-| ---------------- | ------------ | -------------------------------------- |
-| id               | UUID         | Khóa chính                             |
-| tenant_id        | UUID         | ID của tenant                          |
-| integration_id   | UUID         | ID của tích hợp webhook                |
-| direction        | ENUM         | Hướng (inbound, outbound)              |
-| event            | VARCHAR(255) | Sự kiện                                |
-| request_url      | TEXT         | URL của request                        |
-| request_headers  | JSONB        | Headers của request                    |
-| request_body     | JSONB        | Body của request                       |
-| response_status  | INTEGER      | Status code của response               |
-| response_headers | JSONB        | Headers của response                   |
-| response_body    | JSONB        | Body của response                      |
-| error            | TEXT         | Lỗi (nếu có)                           |
-| duration         | INTEGER      | Thời gian xử lý (ms)                   |
-| ip_address       | VARCHAR(50)  | Địa chỉ IP                             |
-| retry_count      | INTEGER      | Số lần thử lại                         |
-| status           | ENUM         | Trạng thái (success, failed, retrying) |
-| created_at       | TIMESTAMP    | Thời gian tạo                          |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| integration_id | UUID | ID của tích hợp webhook |
+| direction | ENUM | Hướng (inbound, outbound) |
+| event | VARCHAR(255) | Sự kiện |
+| request_url | TEXT | URL của request |
+| request_headers | JSONB | Headers của request |
+| request_body | JSONB | Body của request |
+| response_status | INTEGER | Status code của response |
+| response_headers | JSONB | Headers của response |
+| response_body | JSONB | Body của response |
+| error | TEXT | Lỗi (nếu có) |
+| duration | INTEGER | Thời gian xử lý (ms) |
+| ip_address | VARCHAR(50) | Địa chỉ IP |
+| retry_count | INTEGER | Số lần thử lại |
+| status | ENUM | Trạng thái (success, failed, retrying) |
+| created_at | TIMESTAMP | Thời gian tạo |
 
 ### 3.3. Database Integration
 
@@ -274,80 +274,80 @@ Bảng `webhook_log` lưu trữ log của các webhook.
 
 Bảng `database_integration` lưu trữ thông tin về các tích hợp database.
 
-| Tên trường      | Kiểu dữ liệu | Mô tả                                                         |
-| --------------- | ------------ | ------------------------------------------------------------- |
-| id              | UUID         | Khóa chính                                                    |
-| tenant_id       | UUID         | ID của tenant                                                 |
-| name            | VARCHAR(255) | Tên tích hợp                                                  |
-| description     | TEXT         | Mô tả                                                         |
-| type            | ENUM         | Loại database (mysql, postgresql, sqlserver, mongodb, oracle) |
-| host            | VARCHAR(255) | Host                                                          |
-| port            | INTEGER      | Port                                                          |
-| database        | VARCHAR(255) | Tên database                                                  |
-| username        | VARCHAR(255) | Tên đăng nhập                                                 |
-| password        | VARCHAR(255) | Mật khẩu (được mã hóa)                                        |
-| ssl             | BOOLEAN      | Sử dụng SSL hay không                                         |
-| ssl_config      | JSONB        | Cấu hình SSL                                                  |
-| connection_pool | JSONB        | Cấu hình connection pool                                      |
-| schema_mapping  | JSONB        | Mapping schema                                                |
-| sync_config     | JSONB        | Cấu hình đồng bộ                                              |
-| status          | ENUM         | Trạng thái (active, inactive, testing)                        |
-| created_by      | UUID         | Người tạo                                                     |
-| updated_by      | UUID         | Người cập nhật                                                |
-| created_at      | TIMESTAMP    | Thời gian tạo                                                 |
-| updated_at      | TIMESTAMP    | Thời gian cập nhật                                            |
-| deleted_at      | TIMESTAMP    | Thời gian xóa (soft delete)                                   |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| name | VARCHAR(255) | Tên tích hợp |
+| description | TEXT | Mô tả |
+| type | ENUM | Loại database (mysql, postgresql, sqlserver, mongodb, oracle) |
+| host | VARCHAR(255) | Host |
+| port | INTEGER | Port |
+| database | VARCHAR(255) | Tên database |
+| username | VARCHAR(255) | Tên đăng nhập |
+| password | VARCHAR(255) | Mật khẩu (được mã hóa) |
+| ssl | BOOLEAN | Sử dụng SSL hay không |
+| ssl_config | JSONB | Cấu hình SSL |
+| connection_pool | JSONB | Cấu hình connection pool |
+| schema_mapping | JSONB | Mapping schema |
+| sync_config | JSONB | Cấu hình đồng bộ |
+| status | ENUM | Trạng thái (active, inactive, testing) |
+| created_by | UUID | Người tạo |
+| updated_by | UUID | Người cập nhật |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 #### 3.3.2. Bảng database_query
 
 Bảng `database_query` lưu trữ thông tin về các truy vấn database.
 
-| Tên trường     | Kiểu dữ liệu | Mô tả                                  |
-| -------------- | ------------ | -------------------------------------- |
-| id             | UUID         | Khóa chính                             |
-| tenant_id      | UUID         | ID của tenant                          |
-| integration_id | UUID         | ID của tích hợp database               |
-| name           | VARCHAR(255) | Tên truy vấn                           |
-| description    | TEXT         | Mô tả                                  |
-| query          | TEXT         | Truy vấn SQL/NoSQL                     |
-| params         | JSONB        | Parameters                             |
-| result_mapping | JSONB        | Mapping kết quả                        |
-| cache_ttl      | INTEGER      | Thời gian cache (giây)                 |
-| timeout        | INTEGER      | Thời gian timeout (ms)                 |
-| is_read_only   | BOOLEAN      | Chỉ đọc hay không                      |
-| status         | ENUM         | Trạng thái (active, inactive, testing) |
-| created_by     | UUID         | Người tạo                              |
-| updated_by     | UUID         | Người cập nhật                         |
-| created_at     | TIMESTAMP    | Thời gian tạo                          |
-| updated_at     | TIMESTAMP    | Thời gian cập nhật                     |
-| deleted_at     | TIMESTAMP    | Thời gian xóa (soft delete)            |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| integration_id | UUID | ID của tích hợp database |
+| name | VARCHAR(255) | Tên truy vấn |
+| description | TEXT | Mô tả |
+| query | TEXT | Truy vấn SQL/NoSQL |
+| params | JSONB | Parameters |
+| result_mapping | JSONB | Mapping kết quả |
+| cache_ttl | INTEGER | Thời gian cache (giây) |
+| timeout | INTEGER | Thời gian timeout (ms) |
+| is_read_only | BOOLEAN | Chỉ đọc hay không |
+| status | ENUM | Trạng thái (active, inactive, testing) |
+| created_by | UUID | Người tạo |
+| updated_by | UUID | Người cập nhật |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 #### 3.3.3. Bảng database_sync
 
 Bảng `database_sync` lưu trữ thông tin về các đồng bộ database.
 
-| Tên trường          | Kiểu dữ liệu | Mô tả                                  |
-| ------------------- | ------------ | -------------------------------------- |
-| id                  | UUID         | Khóa chính                             |
-| tenant_id           | UUID         | ID của tenant                          |
-| integration_id      | UUID         | ID của tích hợp database               |
-| name                | VARCHAR(255) | Tên đồng bộ                            |
-| description         | TEXT         | Mô tả                                  |
-| source_entity       | VARCHAR(255) | Entity nguồn                           |
-| target_entity       | VARCHAR(255) | Entity đích                            |
-| mapping             | JSONB        | Mapping dữ liệu                        |
-| filter              | JSONB        | Điều kiện lọc                          |
-| sync_type           | ENUM         | Loại đồng bộ (one_way, two_way)        |
-| sync_schedule       | JSONB        | Lịch đồng bộ                           |
-| conflict_resolution | JSONB        | Cách giải quyết xung đột               |
-| batch_size          | INTEGER      | Kích thước batch                       |
-| status              | ENUM         | Trạng thái (active, inactive, testing) |
-| last_sync_time      | TIMESTAMP    | Thời gian đồng bộ cuối cùng            |
-| created_by          | UUID         | Người tạo                              |
-| updated_by          | UUID         | Người cập nhật                         |
-| created_at          | TIMESTAMP    | Thời gian tạo                          |
-| updated_at          | TIMESTAMP    | Thời gian cập nhật                     |
-| deleted_at          | TIMESTAMP    | Thời gian xóa (soft delete)            |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| integration_id | UUID | ID của tích hợp database |
+| name | VARCHAR(255) | Tên đồng bộ |
+| description | TEXT | Mô tả |
+| source_entity | VARCHAR(255) | Entity nguồn |
+| target_entity | VARCHAR(255) | Entity đích |
+| mapping | JSONB | Mapping dữ liệu |
+| filter | JSONB | Điều kiện lọc |
+| sync_type | ENUM | Loại đồng bộ (one_way, two_way) |
+| sync_schedule | JSONB | Lịch đồng bộ |
+| conflict_resolution | JSONB | Cách giải quyết xung đột |
+| batch_size | INTEGER | Kích thước batch |
+| status | ENUM | Trạng thái (active, inactive, testing) |
+| last_sync_time | TIMESTAMP | Thời gian đồng bộ cuối cùng |
+| created_by | UUID | Người tạo |
+| updated_by | UUID | Người cập nhật |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 ### 3.4. Marketplace Integration
 
@@ -355,82 +355,82 @@ Bảng `database_sync` lưu trữ thông tin về các đồng bộ database.
 
 Bảng `marketplace_integration` lưu trữ thông tin về các tích hợp marketplace.
 
-| Tên trường  | Kiểu dữ liệu | Mô tả                                                           |
-| ----------- | ------------ | --------------------------------------------------------------- |
-| id          | UUID         | Khóa chính                                                      |
-| tenant_id   | UUID         | ID của tenant                                                   |
-| name        | VARCHAR(255) | Tên tích hợp                                                    |
-| description | TEXT         | Mô tả                                                           |
-| type        | ENUM         | Loại marketplace (shopee, lazada, tiktok, woocommerce, magento) |
-| credentials | JSONB        | Thông tin xác thực                                              |
-| settings    | JSONB        | Cài đặt                                                         |
-| sync_config | JSONB        | Cấu hình đồng bộ                                                |
-| webhook_url | VARCHAR(255) | URL webhook                                                     |
-| status      | ENUM         | Trạng thái (active, inactive, testing)                          |
-| created_by  | UUID         | Người tạo                                                       |
-| updated_by  | UUID         | Người cập nhật                                                  |
-| created_at  | TIMESTAMP    | Thời gian tạo                                                   |
-| updated_at  | TIMESTAMP    | Thời gian cập nhật                                              |
-| deleted_at  | TIMESTAMP    | Thời gian xóa (soft delete)                                     |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| name | VARCHAR(255) | Tên tích hợp |
+| description | TEXT | Mô tả |
+| type | ENUM | Loại marketplace (shopee, lazada, tiktok, woocommerce, magento) |
+| credentials | JSONB | Thông tin xác thực |
+| settings | JSONB | Cài đặt |
+| sync_config | JSONB | Cấu hình đồng bộ |
+| webhook_url | VARCHAR(255) | URL webhook |
+| status | ENUM | Trạng thái (active, inactive, testing) |
+| created_by | UUID | Người tạo |
+| updated_by | UUID | Người cập nhật |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 #### 3.4.2. Bảng marketplace_product
 
 Bảng `marketplace_product` lưu trữ thông tin về các sản phẩm trên marketplace.
 
-| Tên trường     | Kiểu dữ liệu | Mô tả                                  |
-| -------------- | ------------ | -------------------------------------- |
-| id             | UUID         | Khóa chính                             |
-| tenant_id      | UUID         | ID của tenant                          |
-| integration_id | UUID         | ID của tích hợp marketplace            |
-| product_id     | UUID         | ID của sản phẩm trong NextFlow CRM-AI  |
-| marketplace_id | VARCHAR(255) | ID của sản phẩm trên marketplace       |
-| name           | VARCHAR(255) | Tên sản phẩm                           |
-| description    | TEXT         | Mô tả                                  |
-| price          | DECIMAL      | Giá                                    |
-| sale_price     | DECIMAL      | Giá khuyến mãi                         |
-| currency       | VARCHAR(10)  | Đơn vị tiền tệ                         |
-| stock          | INTEGER      | Tồn kho                                |
-| sku            | VARCHAR(255) | SKU                                    |
-| status         | ENUM         | Trạng thái (active, inactive, pending) |
-| attributes     | JSONB        | Thuộc tính                             |
-| images         | JSONB        | Hình ảnh                               |
-| categories     | JSONB        | Danh mục                               |
-| last_sync_time | TIMESTAMP    | Thời gian đồng bộ cuối cùng            |
-| created_at     | TIMESTAMP    | Thời gian tạo                          |
-| updated_at     | TIMESTAMP    | Thời gian cập nhật                     |
-| deleted_at     | TIMESTAMP    | Thời gian xóa (soft delete)            |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| integration_id | UUID | ID của tích hợp marketplace |
+| product_id | UUID | ID của sản phẩm trong NextFlow CRM-AI |
+| marketplace_id | VARCHAR(255) | ID của sản phẩm trên marketplace |
+| name | VARCHAR(255) | Tên sản phẩm |
+| description | TEXT | Mô tả |
+| price | DECIMAL | Giá |
+| sale_price | DECIMAL | Giá khuyến mãi |
+| currency | VARCHAR(10) | Đơn vị tiền tệ |
+| stock | INTEGER | Tồn kho |
+| sku | VARCHAR(255) | SKU |
+| status | ENUM | Trạng thái (active, inactive, pending) |
+| attributes | JSONB | Thuộc tính |
+| images | JSONB | Hình ảnh |
+| categories | JSONB | Danh mục |
+| last_sync_time | TIMESTAMP | Thời gian đồng bộ cuối cùng |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 #### 3.4.3. Bảng marketplace_order
 
 Bảng `marketplace_order` lưu trữ thông tin về các đơn hàng từ marketplace.
 
-| Tên trường       | Kiểu dữ liệu | Mô tả                                 |
-| ---------------- | ------------ | ------------------------------------- |
-| id               | UUID         | Khóa chính                            |
-| tenant_id        | UUID         | ID của tenant                         |
-| integration_id   | UUID         | ID của tích hợp marketplace           |
-| order_id         | UUID         | ID của đơn hàng trong NextFlow CRM-AI |
-| marketplace_id   | VARCHAR(255) | ID của đơn hàng trên marketplace      |
-| customer_name    | VARCHAR(255) | Tên khách hàng                        |
-| customer_email   | VARCHAR(255) | Email khách hàng                      |
-| customer_phone   | VARCHAR(50)  | Số điện thoại khách hàng              |
-| shipping_address | JSONB        | Địa chỉ giao hàng                     |
-| billing_address  | JSONB        | Địa chỉ thanh toán                    |
-| items            | JSONB        | Các mục trong đơn hàng                |
-| total            | DECIMAL      | Tổng tiền                             |
-| currency         | VARCHAR(10)  | Đơn vị tiền tệ                        |
-| status           | ENUM         | Trạng thái đơn hàng                   |
-| payment_method   | VARCHAR(255) | Phương thức thanh toán                |
-| payment_status   | ENUM         | Trạng thái thanh toán                 |
-| shipping_method  | VARCHAR(255) | Phương thức vận chuyển                |
-| shipping_status  | ENUM         | Trạng thái vận chuyển                 |
-| tracking_number  | VARCHAR(255) | Số tracking                           |
-| notes            | TEXT         | Ghi chú                               |
-| marketplace_data | JSONB        | Dữ liệu gốc từ marketplace            |
-| last_sync_time   | TIMESTAMP    | Thời gian đồng bộ cuối cùng           |
-| created_at       | TIMESTAMP    | Thời gian tạo                         |
-| updated_at       | TIMESTAMP    | Thời gian cập nhật                    |
-| deleted_at       | TIMESTAMP    | Thời gian xóa (soft delete)           |
+| Tên trường | Kiểu dữ liệu | Mô tả |
+|------------|--------------|-------|
+| id | UUID | Khóa chính |
+| tenant_id | UUID | ID của tenant |
+| integration_id | UUID | ID của tích hợp marketplace |
+| order_id | UUID | ID của đơn hàng trong NextFlow CRM-AI |
+| marketplace_id | VARCHAR(255) | ID của đơn hàng trên marketplace |
+| customer_name | VARCHAR(255) | Tên khách hàng |
+| customer_email | VARCHAR(255) | Email khách hàng |
+| customer_phone | VARCHAR(50) | Số điện thoại khách hàng |
+| shipping_address | JSONB | Địa chỉ giao hàng |
+| billing_address | JSONB | Địa chỉ thanh toán |
+| items | JSONB | Các mục trong đơn hàng |
+| total | DECIMAL | Tổng tiền |
+| currency | VARCHAR(10) | Đơn vị tiền tệ |
+| status | ENUM | Trạng thái đơn hàng |
+| payment_method | VARCHAR(255) | Phương thức thanh toán |
+| payment_status | ENUM | Trạng thái thanh toán |
+| shipping_method | VARCHAR(255) | Phương thức vận chuyển |
+| shipping_status | ENUM | Trạng thái vận chuyển |
+| tracking_number | VARCHAR(255) | Số tracking |
+| notes | TEXT | Ghi chú |
+| marketplace_data | JSONB | Dữ liệu gốc từ marketplace |
+| last_sync_time | TIMESTAMP | Thời gian đồng bộ cuối cùng |
+| created_at | TIMESTAMP | Thời gian tạo |
+| updated_at | TIMESTAMP | Thời gian cập nhật |
+| deleted_at | TIMESTAMP | Thời gian xóa (soft delete) |
 
 ## 4. MULTI-TENANT TRONG SCHEMA TÍCH HỢP
 

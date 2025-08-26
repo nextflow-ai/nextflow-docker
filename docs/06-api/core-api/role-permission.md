@@ -116,12 +116,12 @@ GET /role/permission/reports
 
 ## 6. ERROR CODES
 
-| Code | Message      | Mô tả                |
-| ---- | ------------ | -------------------- |
-| 4001 | Not found    | Không tìm thấy       |
+| Code | Message | Mô tả |
+|------|---------|-------|
+| 4001 | Not found | Không tìm thấy |
 | 4002 | Invalid data | Dữ liệu không hợp lệ |
-| 4003 | Unauthorized | Không có quyền       |
-| 5001 | Server error | Lỗi server           |
+| 4003 | Unauthorized | Không có quyền |
+| 5001 | Server error | Lỗi server |
 
 ---
 
