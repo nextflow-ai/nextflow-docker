@@ -70,7 +70,7 @@ networks:
         com.docker.network.enable_ipv6: "false" # Tắt IPv6 để tăng performance
         com.docker.network.bridge.default_bridge: "false" # Không dùng default bridge
 
-# CẤU HÌNH MẶC ĐỊNH CHO TẤT CẢ SERVICES - ĐÃ TỐI ƯU HÓA
+# CẤU HÌNH MẶC ĐỊNH CHO TẤT CẢ SERVICES
 # ============================================================================
 # Template này sẽ được kế thừa bởi tất cả services để đảm bảo tính nhất quán
 x-default-opts: &default-opts
